@@ -117,7 +117,6 @@ function formatLabelFull(label: string | number, isContext: boolean = false): st
 function formatLabelAxis(label: string | number, isContext: boolean = false): string {
   if (!label) return "";
   
-  // Se for contexto, damos uma dica visual (mas o XAxis vai sobrescrever com formatação customizada se quiser)
   if (isContext) {
       if (String(label).match(/^\d{4}-\d{2}$/)) {
         const [y, m] = String(label).split("-").map(Number);
@@ -210,7 +209,10 @@ export default function PpmDinamico({
         if (tipo === "mes" && valor && ano) {
             const monthKey = `${ano}-${String(valor).padStart(2, '0')}`;
             contextItem = trendData.monthly.find(m => m.name === monthKey) || null;
-            rawItems = trendData.weekly[monthKey] || [];
+            const weeksInMonth = trendData.weekly[monthKey] || [];
+            rawItems = weeksInMonth
+                .flatMap(week => trendData.daily[week.name] || [])
+                .sort((a, b) => a.name.localeCompare(b.name));
         } 
         else if (tipo === "semana" && valor && ano) {
             const weekKey = `${ano}-W${String(valor).padStart(2, '0')}`;
@@ -233,10 +235,18 @@ export default function PpmDinamico({
     let finalRawItems = [...rawItems];
     if (contextItem) {
         hasContext = true;
-        finalRawItems = [{ ...contextItem, isContext: true } as any, ...rawItems];
+        finalRawItems = [
+            { ...contextItem, isContext: true } as any, 
+            { name: "GAP", isGap: true } as any, 
+            ...rawItems
+        ];
     }
 
     return finalRawItems.map(item => {
+        if ((item as any).isGap) {
+            return { name: "GAP", labelAxis: "", isGap: true };
+        }
+
         const isCtx = (item as any).isContext === true;
         const base = {
             name: item.name,
@@ -273,6 +283,7 @@ export default function PpmDinamico({
         }
         const activeResp = new Set<string>();
         chartData.forEach(d => {
+             if ((d as any).isGap) return;
              Object.keys(COLORS_RESP).forEach(key => {
                  if (typeof d[key] === 'number' && d[key] > 0) activeResp.add(key);
              });
@@ -293,8 +304,9 @@ export default function PpmDinamico({
         }
         const allModels = new Set<string>();
         chartData.forEach(d => {
+             if ((d as any).isGap) return;
              Object.keys(d).forEach(k => {
-                 if (!['name', 'labelAxis', 'fullLabel', 'production', 'defects', 'ppm', 'totalDefects', 'totalPpmDisplay', 'abs_resp', 'abs_cat', 'abs_mod', 'isContext'].includes(k)) {
+                 if (!['name', 'labelAxis', 'fullLabel', 'production', 'defects', 'ppm', 'totalDefects', 'totalPpmDisplay', 'abs_resp', 'abs_cat', 'abs_mod', 'isContext', 'isGap'].includes(k)) {
                      if (allowedModels && allowedModels.length > 0) {
                          if (!allowedModels.includes(k)) return;
                      }
@@ -329,6 +341,7 @@ export default function PpmDinamico({
   ====================================================== */
   const finalData = useMemo(() => {
       return chartData.map(d => {
+          if ((d as any).isGap) return { ...d, _stackTotal: null };
           let stackSum = 0;
           keys.forEach(k => {
               const val = d[k];
@@ -338,7 +351,8 @@ export default function PpmDinamico({
       });
   }, [chartData, keys]);
 
-  const hasContextItem = finalData.length > 0 && finalData[0].isContext;
+  // ✅ CORREÇÃO 1: Usar 'as any' para evitar erro de propriedade inexistente no GAP
+  const hasContextItem = finalData.length > 0 && (finalData[0] as any).isContext;
 
   const maxVal = chartData.length > 0 
     ? Math.max(...chartData.map((d: any) => d.totalPpmDisplay || 0), META_PPM) * 1.2
@@ -357,7 +371,7 @@ export default function PpmDinamico({
               {viewMode === "modelo" && `📊 PPM por Modelo${filters?.categoria ? ` (${filters.categoria})` : ""}`}
             </h2>
             <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                {filters?.periodo?.tipo === "mes" && filters.periodo.valor ? "Total Mensal + Detalhe Semanal" :
+                {filters?.periodo?.tipo === "mes" && filters.periodo.valor ? "Total Mensal + Detalhe Diário" :
                  filters?.periodo?.tipo === "semana" && filters.periodo.valor ? "Total Semanal + Detalhe Diário" : 
                  filters?.periodo?.tipo === "semana" ? "Visualização Semanal (Ano Todo)" :
                  "Visualização Mensal"}
@@ -378,7 +392,7 @@ export default function PpmDinamico({
       <div style={{ flex: 1, width: "100%", minHeight: 0 }}>
         {chartData.length === 0 ? (
              <div style={{...emptyContainerStyle, height: "100%"}}>
-                <span>Sem dados para esta seleção.</span>
+               <span>Sem dados para esta seleção.</span>
              </div>
         ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -391,11 +405,13 @@ export default function PpmDinamico({
                 <XAxis 
                     dataKey="labelAxis" 
                     tick={(props) => {
-                        // ✅ CORREÇÃO AQUI: desconstruindo o 'index' corretamente
                         const { x, y, payload, index } = props;
+                        const dataItem = finalData[index];
                         
-                        // Lógica: Se for o primeiro item (index 0) E tivermos contexto, destaca.
-                        const isTotal = index === 0 && hasContextItem;
+                        if (!dataItem || (dataItem as any).isGap) return null;
+
+                        // ✅ CORREÇÃO 2: Usar 'as any' para acesso seguro
+                        const isTotal = (dataItem as any).isContext;
 
                         return (
                             <g transform={`translate(${x},${y})`}>
@@ -425,7 +441,7 @@ export default function PpmDinamico({
                 </ReferenceLine>
 
                 {hasContextItem && (
-                    <ReferenceLine x={0.5} stroke="rgba(255,255,255,0.2)" strokeDasharray="3 3" />
+                    <ReferenceLine x={1} stroke="rgba(255,255,255,0.2)" strokeDasharray="3 3" />
                 )}
 
                 <Tooltip
@@ -433,6 +449,9 @@ export default function PpmDinamico({
                 content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
                     const dataItem = payload[0].payload;
+                    
+                    if (dataItem.isGap) return null;
+
                     const isCtx = dataItem.isContext;
                     return (
                         <div style={{ background: "#0f172a", border: isCtx ? "1px solid #60A5FA" : "1px solid rgba(255,255,255,0.15)", padding: "12px", borderRadius: "8px", fontSize: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", minWidth: 180 }}>
@@ -470,6 +489,7 @@ export default function PpmDinamico({
                     dot={{ r: 4, fill: "#fff", strokeWidth: 0 }}
                     activeDot={{ r: 6 }}
                     isAnimationActive={false}
+                    connectNulls={false} 
                 />
 
                 {keys.map((key, index) => {

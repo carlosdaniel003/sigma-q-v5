@@ -71,12 +71,10 @@ function calcPpm(defects: number, production: number): number {
 
 /* ======================================================
    CUSTOM LABEL (DENTRO DA BARRA)
-   Mostra valor DO SEGMENTO se a barra for alta o suficiente
 ====================================================== */
 const renderCustomBarLabel = (props: any) => {
   const { x, y, width, height, value } = props;
   
-  // Só mostra se a altura da barra for maior que 25px e o valor > 0
   if (height < 25 || !value) return null;
 
   return (
@@ -95,25 +93,22 @@ const renderCustomBarLabel = (props: any) => {
 
 /* ======================================================
    CUSTOM LABEL (TOPO DA BARRA)
-   Mostra o PPM Total do Mês
+   ✅ CORREÇÃO: Agora busca o valor oficial no ppmMonthlyTrend
 ====================================================== */
-const renderTotalLabel = (props: any, chartData: any[]) => {
+const renderTotalLabel = (props: any, chartData: any[], ppmTrend: PpmMonthlyTrendItem[] = []) => {
   const { x, y, width, index } = props;
   const item = chartData[index];
   
-  // Calcula o total somando as partes visíveis no gráfico
-  const totalPpm = 
-    (item["FORN. IMPORTADO"] || 0) + 
-    (item["FORN. LOCAL"] || 0) + 
-    (item["PROCESSO"] || 0) + 
-    (item["PROJETO"] || 0);
+  // ✅ Busca o valor OFICIAL do mês no array de tendência
+  const trendItem = ppmTrend.find(t => t.month === item.month);
+  const totalPpm = trendItem?.ppm;
 
-  if (!totalPpm) return null;
+  if (totalPpm === null || totalPpm === undefined) return null;
 
   return (
     <text
       x={x + width / 2}
-      y={y - 10} // Um pouco acima da barra
+      y={y - 10} 
       fill="#cbd5e1"
       textAnchor="middle"
       style={{ fontSize: 11, fontWeight: "bold" }}
@@ -244,7 +239,7 @@ export default function ResponsabilidadePorMes({
               tick={{ fill: "#cbd5e1", fontSize: 12 }}
             />
 
-            {/* 🔴 LINHA DE META (COM RÓTULO CUSTOMIZADO) */}
+            {/* 🔴 LINHA DE META */}
             <ReferenceLine
               y={META_PPM}
               stroke="#EF4444"
@@ -265,6 +260,7 @@ export default function ResponsabilidadePorMes({
               cursor={{ fill: "rgba(255,255,255,0.05)" }}
               labelFormatter={(label) => {
                 const raw = data.find((d) => d.month === label);
+                // ✅ Busca o valor OFICIAL para exibir no tooltip também
                 const trend = ppmMonthlyTrend?.find(
                   (t) => t.month === label
                 );
@@ -309,19 +305,18 @@ export default function ResponsabilidadePorMes({
                   stackId="a"
                   fill={COLORS[key]}
                 >
-                  {/* ✅ Label Interno: Mostra apenas o valor do segmento */}
                   <LabelList 
                     dataKey={key} 
                     content={renderCustomBarLabel} 
                   />
 
-                  {/* ✅ Label de Total no Topo: Apenas na última barra */}
+                  {/* ✅ Label de Total no Topo: Passamos o ppmMonthlyTrend para buscar o valor correto */}
                   {isLast && (
-                     <LabelList
-                       dataKey={key} // Chave base apenas para posição
-                       position="top"
-                       content={(props) => renderTotalLabel(props, chartData)}
-                     />
+                      <LabelList
+                        dataKey={key}
+                        position="top"
+                        content={(props) => renderTotalLabel(props, chartData, ppmMonthlyTrend)}
+                      />
                   )}
                 </Bar>
               );

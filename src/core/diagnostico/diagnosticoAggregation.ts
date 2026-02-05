@@ -2,7 +2,7 @@ import { norm } from "./diagnosticoUtils";
 import { DefeitoFiltrado } from "./diagnosticoFilterEngine";
 
 /* ======================================================
-   TIPOS DE SAÍDA
+   TIPOS DE SAÍDA (Expandidos para 4 Níveis)
 ====================================================== */
 export interface PrincipalCausaResult {
   nome: string;
@@ -28,20 +28,25 @@ export interface TopCausasAgrupamentoResult {
   ocorrencias: number;
   scoreRisco: number;
   nprMedio: number;
-  // ✅ Lista detalhada dos defeitos deste grupo (Drill-down)
+  // ✅ NÍVEL 2: Análise
   detalhes: {
     nome: string;
     ocorrencias: number;
-    // ✅ Lista de modelos com quantidade (para o Tooltip)
+    // ✅ NÍVEL 3: Modelo
     modelos: {
         nome: string;
         ocorrencias: number;
+        // ✅ NÍVEL 4: Posição Mecânica
+        posicoes: {
+            nome: string;
+            ocorrencias: number;
+        }[];
     }[]; 
   }[];
 }
 
 /* ======================================================
-   MOTOR DE AGREGAÇÃO — MODO AUDITORIA COMPLETO + DRILL-DOWN
+   MOTOR DE AGREGAÇÃO — HIERARQUIA DE 4 NÍVEIS
 ====================================================== */
 export function agruparDiagnostico(
   defeitos: DefeitoFiltrado[],
@@ -55,7 +60,7 @@ export function agruparDiagnostico(
     NPR: number;
   }[]
 ) {
-  console.log("🟦 [AGREGAÇÃO] INICIANDO CRUZAMENTO DE DADOS...");
+  console.log("🟦 [AGREGAÇÃO] INICIANDO CRUZAMENTO HIERÁRQUICO (4 NÍVEIS)...");
 
   /* ==============================
       1. MAPAS (Agrupamento e FMEA)
@@ -79,9 +84,9 @@ export function agruparDiagnostico(
   const agrupamentoCount = new Map<string, number>();
   const defeitoCount = new Map<string, number>();
   
-  // ✅ ESTRUTURA COMPLEXA:
-  // Agrupamento -> Mapa de Análises -> { Qtd Total, Mapa de Modelos { Modelo -> Qtd } }
-  const detalhesPorAgrupamento = new Map<string, Map<string, { qtd: number; modelos: Map<string, number> }>>();
+  // ✅ ESTRUTURA PROFUNDA (4 Níveis):
+  // Agrupamento -> Map<Analise, Map<Modelo, Map<Posicao, Qtd>>>
+  const hierarquia = new Map<string, Map<string, Map<string, Map<string, number>>>>();
 
   const defeitosCriticosMap = new Map<string, DefeitoCriticoNprResult>();
   const riscoPorAgrupamento = new Map<string, { ocorrencias: number; scoreRisco: number }>();
@@ -90,15 +95,21 @@ export function agruparDiagnostico(
 
   defeitos.forEach((d) => {
     // A. Agrupamento
-    const chaveAnalise = d.ANALISE; // Já vem normalizado
+    const chaveAnalise = d.ANALISE; 
     let agrupamento = mapAgrupamento.get(chaveAnalise);
 
     if (!agrupamento) {
       agrupamento = "NÃO CLASSIFICADO";
     }
 
-    // B. Contadores
+    // B. Extração de Dimensões
     const qtd = d.QUANTIDADE;
+    const modelo = d.MODELO || "GERAL"; // Nível 3
+    
+    // ✅ Nível 4: Posição Mecânica (Corrigido com 'as any' para evitar erro TS 2339)
+    const rawRef = (d as any)["REFERÊNCIA/POSIÇÃO MECÂNICA"] || (d as any).REFERENCIA_POSICAO_MECANICA || (d as any)["REFERENCIA/POSICAO MECANICA"] || (d as any)["REFERENCIA"];
+    const posicao = rawRef ? norm(rawRef) : "N/A"; 
+
     totalSomado += qtd;
 
     // Soma por Grupo (TOTAL REAL)
@@ -113,23 +124,26 @@ export function agruparDiagnostico(
       (defeitoCount.get(chaveAnalise) || 0) + qtd
     );
 
-    // ✅ C. Preenche Detalhes (Drill-down com Modelos e Quantidades)
-    if (!detalhesPorAgrupamento.has(agrupamento)) {
-        detalhesPorAgrupamento.set(agrupamento, new Map());
+    /* -----------------------------------------------------------
+       ✅ C. POPULA A ÁRVORE HIERÁRQUICA (Agrup -> Analise -> Modelo -> Posicao)
+    ----------------------------------------------------------- */
+    if (!hierarquia.has(agrupamento)) {
+        hierarquia.set(agrupamento, new Map());
     }
-    const mapaDetalhes = detalhesPorAgrupamento.get(agrupamento)!;
-    
-    // Inicializa se não existir
-    if (!mapaDetalhes.has(chaveAnalise)) {
-        mapaDetalhes.set(chaveAnalise, { qtd: 0, modelos: new Map() });
+    const nivelAnalise = hierarquia.get(agrupamento)!;
+
+    if (!nivelAnalise.has(chaveAnalise)) {
+        nivelAnalise.set(chaveAnalise, new Map());
     }
-    
-    const item = mapaDetalhes.get(chaveAnalise)!;
-    item.qtd += qtd;
-    
-    // Contagem específica por modelo
-    const countModelo = item.modelos.get(d.MODELO) || 0;
-    item.modelos.set(d.MODELO, countModelo + qtd);
+    const nivelModelo = nivelAnalise.get(chaveAnalise)!;
+
+    if (!nivelModelo.has(modelo)) {
+        nivelModelo.set(modelo, new Map());
+    }
+    const nivelPosicao = nivelModelo.get(modelo)!;
+
+    // Soma a quantidade na folha da árvore (Posição)
+    nivelPosicao.set(posicao, (nivelPosicao.get(posicao) || 0) + qtd);
 
 
     // D. FMEA Match (Score e Críticos)
@@ -138,7 +152,6 @@ export function agruparDiagnostico(
     if (fmeaItem && fmeaItem.NPR > 0) {
         const key = `${fmeaItem.CÓDIGO}|${fmeaItem.DESCRIÇÃO}`;
         
-        // Salva para lista de críticos (únicos)
         if (!defeitosCriticosMap.has(key)) {
           defeitosCriticosMap.set(key, {
             codigo: fmeaItem.CÓDIGO,
@@ -150,7 +163,6 @@ export function agruparDiagnostico(
           });
         }
 
-        // Calcula Risco Ponderado do Agrupamento
         if (!riscoPorAgrupamento.has(agrupamento)) {
             riscoPorAgrupamento.set(agrupamento, { ocorrencias: 0, scoreRisco: 0 });
         }
@@ -159,26 +171,6 @@ export function agruparDiagnostico(
         ref.scoreRisco += qtd * fmeaItem.NPR;
     }
   });
-
-  /* ==============================================================
-      LOGS DE AUDITORIA — LISTA COMPLETA PARA VALIDAÇÃO
-  ============================================================== */
-  console.log(`\n✅ TOTAL GERAL CALCULADO: ${totalSomado} defeitos`);
-  
-  console.log("\n📊 [AUDITORIA] DETALHE POR AGRUPAMENTO:");
-  const gruposOrdenados = [...agrupamentoCount.entries()].sort((a, b) => b[1] - a[1]);
-  gruposOrdenados.forEach(([nome, qtd]) => {
-      console.log(`   👉 ${nome}: ${qtd}`);
-  });
-
-  console.log("\n📊 [AUDITORIA] DETALHE POR ANÁLISE (LISTA COMPLETA):");
-  const defeitosOrdenados = [...defeitoCount.entries()].sort((a, b) => b[1] - a[1]);
-  
-  defeitosOrdenados.forEach(([nome, qtd]) => {
-      console.log(`   🔎 ${nome}: ${qtd}`);
-  });
-  
-  console.log("========================================\n");
 
   /* ==============================
       3. MONTAGEM DOS RESULTADOS
@@ -189,12 +181,14 @@ export function agruparDiagnostico(
   const emptyDefeito = { nome: "-", ocorrencias: 0 };
   const emptyCritico = { codigo: "-", descricao: "-", npr: 0, severidade: 0, ocorrencia: 0, deteccao: 0 };
 
+  const gruposOrdenados = [...agrupamentoCount.entries()].sort((a, b) => b[1] - a[1]);
+
   // Principal Causa
   const principalCausa: PrincipalCausaResult = gruposOrdenados.length > 0 
     ? { nome: gruposOrdenados[0][0], ocorrencias: gruposOrdenados[0][1] }
     : emptyCausa;
 
-  // Principal Defeito (do grupo vencedor)
+  // Principal Defeito
   const defeitosDoAgrupamento = defeitos.filter((d) => {
       const grupo = mapAgrupamento.get(d.ANALISE) ?? "NÃO CLASSIFICADO";
       return grupo === principalCausa.nome;
@@ -211,45 +205,67 @@ export function agruparDiagnostico(
       ? { nome: sortedDefeitosGrupo[0][0], ocorrencias: sortedDefeitosGrupo[0][1] }
       : emptyDefeito;
 
-  // ✅ Defeitos Críticos (TOP 5)
+  // Defeitos Críticos (TOP 5)
   const defeitosCriticos = [...defeitosCriticosMap.values()]
     .sort((a, b) => b.npr - a.npr)
     .slice(0, 5); 
 
   const defeitoCritico = defeitosCriticos.length > 0 ? defeitosCriticos[0] : emptyCritico;
 
-  // Top Causas (Por Risco Ponderado)
+  // ✅ TOP CAUSAS (COM ÁRVORE PROFUNDA)
   const topCausas: TopCausasAgrupamentoResult[] = [...riscoPorAgrupamento.entries()]
     .map(([nome, v]) => {
-      // ✅ FIX: Usa a contagem real total do agrupamento, e não apenas a parcial do risco
       const totalRealDoGrupo = agrupamentoCount.get(nome) || 0;
 
-      // ✅ Recupera e ordena os detalhes deste grupo para o Drill-down
-      const mapaDetalhes = detalhesPorAgrupamento.get(nome);
-      const listaDetalhes = mapaDetalhes 
-        ? [...mapaDetalhes.entries()]
-            .map(([dNome, dDados]) => ({ 
-                nome: dNome, 
-                ocorrencias: dDados.qtd,
-                // ✅ Converte Map de modelos para Array [{nome, qtd}] e ordena
-                modelos: [...dDados.modelos.entries()]
-                    .map(([mNome, mQtd]) => ({ nome: mNome, ocorrencias: mQtd }))
-                    .sort((a, b) => b.ocorrencias - a.ocorrencias)
-            }))
-            .sort((a, b) => b.ocorrencias - a.ocorrencias)
+      // Recupera a árvore de detalhes deste Agrupamento
+      const mapAnalises = hierarquia.get(nome);
+
+      // Converte Map<Analise> -> Array
+      const listaAnalises = mapAnalises 
+        ? [...mapAnalises.entries()].map(([nomeAnalise, mapModelos]) => {
+            
+            // Soma total da análise para ordenar
+            let totalAnalise = 0;
+            
+            // Converte Map<Modelo> -> Array
+            const listaModelos = [...mapModelos.entries()].map(([nomeModelo, mapPosicoes]) => {
+                
+                // Soma total do modelo
+                let totalModelo = 0;
+
+                // Converte Map<Posicao> -> Array
+                const listaPosicoes = [...mapPosicoes.entries()].map(([nomePos, qtdPos]) => {
+                    totalModelo += qtdPos;
+                    return { nome: nomePos, ocorrencias: qtdPos };
+                }).sort((a, b) => b.ocorrencias - a.ocorrencias); // Ordena Posições
+
+                totalAnalise += totalModelo;
+
+                return {
+                    nome: nomeModelo,
+                    ocorrencias: totalModelo,
+                    posicoes: listaPosicoes
+                };
+            }).sort((a, b) => b.ocorrencias - a.ocorrencias); // Ordena Modelos
+
+            return {
+                nome: nomeAnalise,
+                ocorrencias: totalAnalise,
+                modelos: listaModelos
+            };
+        }).sort((a, b) => b.ocorrencias - a.ocorrencias) // Ordena Análises
         : [];
 
       return {
         nome,
-        ocorrencias: totalRealDoGrupo, // Usa o valor corrigido (ex: 527)
+        ocorrencias: totalRealDoGrupo, 
         scoreRisco: v.scoreRisco,
-        // Recalcula média baseada no total real (risco diluído)
         nprMedio: totalRealDoGrupo > 0 ? Number((v.scoreRisco / totalRealDoGrupo).toFixed(1)) : 0,
-        detalhes: listaDetalhes
+        detalhes: listaAnalises // ✅ Agora contém a árvore completa
       };
     })
     .sort((a, b) => b.scoreRisco - a.scoreRisco)
-    .slice(0, 3); // Mantém apenas Top 3 Cards
+    .slice(0, 3); 
 
   return {
     principalCausa,

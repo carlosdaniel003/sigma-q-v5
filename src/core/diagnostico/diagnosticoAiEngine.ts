@@ -1,73 +1,9 @@
-// src\core\diagnostico\diagnosticoAiEngine.ts
 import {
   DiagnosticoIaTexto,
-  PrincipalCausa,
-  PrincipalDefeito,
-  DefeitoCritico
-} from "./diagnosticoTypes";
+  DiagnosticoAiInput,
+  InsightCard
+} from ".../../app/development/diagnostico/hooks/diagnosticoTypes"; 
 
-/* ======================================================
-   TIPOS DE ENTRADA — IA (DEFINIÇÃO LOCAL)
-====================================================== */
-export interface DiagnosticoAiInput {
-  periodoAtual: {
-    semanaInicio: number;
-    semanaFim: number;
-    principalCausa: PrincipalCausa;
-    principalDefeito: PrincipalDefeito;
-    defeitoCritico: DefeitoCritico;
-  };
-  
-  // ✅ Contexto PPM
-  ppmContext: {
-    atual: number;    
-    anterior: number; 
-    producaoAtual: number;
-  };
-
-  // ✅ Contexto de Análise de Sustentação (Efeito V)
-  analiseSustentacao?: {
-      nome: string;   // Nome do defeito que fez o V
-      ppmT: number;   
-      ppmT1: number;  
-      ppmT2: number; 
-      qtdT: number;   // Qtd Absoluta T (Atual)
-      qtdT1: number;  // Qtd Absoluta T-1
-      qtdT2: number;  // Qtd Absoluta T-2 
-  };
-
-  // ✅ Mudança Brusca (Spike)
-  mudancaBrusca?: {
-      nome: string;
-      ppmAtual: number;
-      ppmAnterior: number;
-      delta: number;
-  } | null;
-
-  // ✅ Contexto de Reincidência
-  reincidencia?: {
-    isReincidente: boolean;         
-    periodosConsecutivos: number;   
-    principalCausaAnterior: string; 
-  };
-
-  contexto?: {
-    turnoMaisAfetado?: string;
-    modeloMaisAfetado?: string;
-    tendenciasAlertas?: {
-        agrupamento: string;
-        crescimento: number;
-        ppmInicial: number;
-        ppmFinal: number;
-        qtdInicial: number;
-        qtdFinal: number;
-    }[];
-  };
-}
-
-/* ======================================================
-   MOTOR DE DIAGNÓSTICO AUTOMÁTICO (IA)
-====================================================== */
 export function gerarDiagnosticoAutomatico(
   input: DiagnosticoAiInput
 ): DiagnosticoIaTexto {
@@ -80,44 +16,45 @@ export function gerarDiagnosticoAutomatico(
     mudancaBrusca 
   } = input;
 
-  const linhas: string[] = [];
+  const resumoLines: string[] = []; // Texto da esquerda
+  const insights: InsightCard[] = []; // Cards da direita
   const indicadores: string[] = [];
 
-  // Helper para formatar números
   const fmt = (n: number) => n.toLocaleString("pt-BR");
-  // Mantém 2 casas decimais fixas para PPM
   const fmtPpm = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   /* ======================================================
-      🚨 0. CHECK DE SEGURANÇA: SEM PRODUÇÃO OU ZERO DEFEITOS
+     🚨 0. CHECK DE SEGURANÇA
   ====================================================== */
-  
-  // 1. Sem Produção: Retorna mensagem amigável para o Empty State
   if (ppmContext.producaoAtual === 0) {
     return {
       titulo: "Sem Produção Registrada",
-      texto: `Não identificamos apontamentos de produção para o período (Semana ${periodoAtual.semanaInicio} a ${periodoAtual.semanaFim}) com os filtros selecionados.\n\n` +
-             `Para visualizar o diagnóstico de qualidade, selecione um período ou modelo que possua volume produtivo registrado.`,
+      resumoGeral: `Não identificamos apontamentos de produção para o período (Semana ${periodoAtual.semanaInicio} a ${periodoAtual.semanaFim}). Selecione outro período.`,
+      insights: [],
       tendencia: "indefinido",
       variacaoPercentual: 0,
       indicadoresChave: []
     };
   }
 
-  // 2. Produção > 0 mas Zero Defeitos: Parabéns!
   if (ppmContext.atual === 0 && ppmContext.producaoAtual > 0) {
     return {
       titulo: "Excelência em Qualidade",
-      texto: `Parabéns! Houve produção de **${fmt(ppmContext.producaoAtual)} peças** neste período sem nenhum registro de falha.\n\n` +
-             `O processo está sob controle total e demonstra robustez nos filtros selecionados.`,
+      resumoGeral: `Parabéns! Houve produção de **${fmt(ppmContext.producaoAtual)} peças** sem nenhum registro de falha. O processo demonstra robustez total.`,
+      insights: [{
+          tipo: "MELHORIA",
+          titulo: "Zero Defeitos",
+          descricao: "Nenhum apontamento de não conformidade no período.",
+          score: 100
+      }],
       tendencia: "melhora",
-      variacaoPercentual: -100, // Melhoria máxima
-      indicadoresChave: ["Zero Defeitos", "PPM 0,00"]
+      variacaoPercentual: -100,
+      indicadoresChave: ["Zero Defeitos"]
     };
   }
 
   /* ======================================================
-      1️⃣ CÁLCULO DE TENDÊNCIA (BASEADO EM PPM GLOBAL)
+     1️⃣ CÁLCULO DE TENDÊNCIA
   ====================================================== */
   let variacaoPpmPercent = 0;
   let diferencaPpmAbsoluta = 0;
@@ -137,19 +74,14 @@ export function gerarDiagnosticoAutomatico(
   }
 
   /* ======================================================
-      2️⃣ CONTEXTO INICIAL
+     2️⃣ RESUMO GERAL (Coluna da Esquerda)
   ====================================================== */
-  linhas.push(
+  resumoLines.push(
     `No período analisado (semanas **${periodoAtual.semanaInicio} a ${periodoAtual.semanaFim}**), ` +
       `o agrupamento **${periodoAtual.principalCausa.nome}** foi o principal ofensor, ` +
       `concentrando **${fmt(periodoAtual.principalCausa.ocorrencias)}** ocorrências.`
   );
 
-  indicadores.push(`PPM Atual: ${fmtPpm(ppmContext.atual)}`);
-
-  /* ======================================================
-      3️⃣ ANÁLISE DE CENÁRIO (PPM GLOBAL)
-  ====================================================== */
   if (tendencia !== "indefinido") {
     const sinal = diferencaPpmAbsoluta > 0 ? "+" : "";
     const txtPercent = `${sinal}${variacaoPpmPercent.toFixed(1)}%`;
@@ -158,178 +90,171 @@ export function gerarDiagnosticoAutomatico(
     const ppmAntStr = fmtPpm(ppmContext.anterior);
 
     if (tendencia === "melhora") {
-      linhas.push(
-        `**Cenário Positivo (Efetividade):** Houve redução expressiva de **${txtAbsoluto} PPM** (${txtPercent}) comparado ao período anterior ` +
-        `(${ppmAntStr} ➝ ${ppmAtualStr}). Recomenda-se investigar quais ações deram certo para padronizá-las.`
+      resumoLines.push(
+        `**Cenário Positivo:** Redução de **${txtAbsoluto} PPM** (${txtPercent}) comparado ao período anterior ` +
+        `(${ppmAntStr} ➝ ${ppmAtualStr}). As ações de contenção demonstram efetividade.`
       );
     } else if (tendencia === "piora") {
-      linhas.push(
-        `**Atenção (Degradação):** O processo apresentou instabilidade, com aumento de **${txtAbsoluto} PPM** (${txtPercent}) em relação ao histórico ` +
-        `(${ppmAntStr} ➝ ${ppmAtualStr}). É urgente revisar as mudanças recentes no processo (4M).`
+      resumoLines.push(
+        `**Atenção (Degradação):** O processo oscilou negativamente, com aumento de **${txtAbsoluto} PPM** (${txtPercent}) ` +
+        `(${ppmAntStr} ➝ ${ppmAtualStr}). Verifique as mudanças recentes no 4M.`
       );
     } else {
-      linhas.push(
-        `**Estabilidade:** O PPM manteve-se estável com variação de **${txtAbsoluto} PPM** (${txtPercent}), oscilando de ${ppmAntStr} para ${ppmAtualStr}. ` +
-        `O processo demonstra consistência, mas requer novas ações para quebra de nível.`
+      resumoLines.push(
+        `**Estabilidade:** O PPM variou apenas **${txtAbsoluto} PPM** (${txtPercent}), mantendo-se no patamar de ${ppmAtualStr}. ` +
+        `O processo está estável, mas exige novas ações para melhoria de nível.`
       );
     }
-  } else {
-    linhas.push(`O PPM atual do período foi calculado em **${fmtPpm(ppmContext.atual)}**. Estabeleça este valor como linha de base.`);
   }
 
-  /* ======================================================
-      4️⃣ PRINCIPAL DEFEITO E CRITICIDADE
-  ====================================================== */
   if (periodoAtual.principalDefeito.nome) {
-    linhas.push(
+    resumoLines.push(
       `O defeito específico **${periodoAtual.principalDefeito.nome}** liderou os registros. ` +
-        `Foque a análise de causa raiz (Ishikawa/5 Porquês) prioritariamente neste item.`
+      `Foque o Ishikawa prioritariamente neste item.`
     );
   }
 
-  linhas.push(
-    `O item de maior risco identificado foi **${periodoAtual.defeitoCritico.descricao}** (NPR **${periodoAtual.defeitoCritico.npr}**), exigindo monitoramento rigoroso.`
-  );
+  indicadores.push(`PPM: ${fmtPpm(ppmContext.atual)}`);
 
   /* ======================================================
-      ✅ 4B. MUDANÇA BRUSCA (VARREDURA GLOBAL)
-      Analisa o defeito que teve a maior variação (Spike)
-      Reporta tanto positivo quanto negativo, independente do tamanho
+     3️⃣ GERAÇÃO DE CARDS DE INSIGHTS (Coluna da Direita)
   ====================================================== */
+
+  // --- A. REINCIDÊNCIA (CRÍTICO) ---
+  if (reincidencia) {
+      if (reincidencia.isReincidente) {
+          insights.push({
+              tipo: "CRITICO",
+              titulo: "Reincidência Sistêmica",
+              descricao: `O grupo "${periodoAtual.principalCausa.nome}" lidera o ranking por ${reincidencia.periodosConsecutivos} períodos consecutivos. Necessário abertura de RNC.`,
+              score: 100 // Topo absoluto
+          });
+      } 
+      else if (reincidencia.principalCausaAnterior === periodoAtual.principalCausa.nome) {
+          insights.push({
+              tipo: "ALERTA",
+              titulo: "Repetição de Ofensor",
+              descricao: `O grupo "${periodoAtual.principalCausa.nome}" repetiu a liderança do período anterior. Risco de se tornar crônico.`,
+              score: 60
+          });
+      }
+  }
+
+  // --- B. MUDANÇA BRUSCA / SPIKE ---
   if (mudancaBrusca) {
       const delta = mudancaBrusca.delta;
       const absDelta = Math.abs(delta);
-      const sinal = delta > 0 ? "+" : ""; 
-      const txtDelta = fmtPpm(delta);     
-      const nomeDefeito = mudancaBrusca.nome;
+      const txtDelta = fmtPpm(delta);
+      const nome = mudancaBrusca.nome;
 
-      // CENÁRIO 1: PIORA (Delta Positivo)
       if (delta > 0) {
+          // Piora
           if (absDelta > 100) {
-              // CRÍTICO (>100)
-              linhas.push(
-                  `**Instabilidade Detectada (Mudança Brusca):** O defeito **"${nomeDefeito}"** apresentou a maior variação negativa do período. ` +
-                  `Saltou de **${fmtPpm(mudancaBrusca.ppmAnterior)} PPM** para **${fmtPpm(mudancaBrusca.ppmAtual)} PPM** (${sinal}${txtDelta} de variação). ` +
-                  `Isso sugere uma quebra de processo recente, entrada de lote defeituoso ou falha de ferramenta.`
-              );
-              indicadores.push(`Spike: ${nomeDefeito}`);
+              insights.push({
+                  tipo: "CRITICO",
+                  titulo: "Spike Negativo (Piora)",
+                  descricao: `O defeito "${nome}" saltou +${txtDelta} PPM subitamente. Indica quebra de processo ou lote defeituoso.`,
+                  score: 90
+              });
           } else {
-              // MODERADO (<100)
-              linhas.push(
-                  `**Oscilação de Processo:** A maior variação registrada foi no defeito **"${nomeDefeito}"**, com aumento de **${txtDelta} PPM** ` +
-                  `(${fmtPpm(mudancaBrusca.ppmAnterior)} ➝ ${fmtPpm(mudancaBrusca.ppmAtual)} PPM). Embora abaixo do limiar crítico, monitore este item.`
-              );
+              insights.push({
+                  tipo: "ALERTA",
+                  titulo: "Oscilação de Processo",
+                  descricao: `O defeito "${nome}" variou +${txtDelta} PPM. Monitore para evitar escalada.`,
+                  score: 50
+              });
           }
-      } 
-      // CENÁRIO 2: MELHORIA (Delta Negativo)
-      else if (delta < 0) {
+      } else {
+          // Melhoria
           if (absDelta > 100) {
-              // EXCELENTE (>100)
-              linhas.push(
-                  `**Melhoria Significativa:** O defeito **"${nomeDefeito}"** teve a maior redução do período. ` +
-                  `Caiu de **${fmtPpm(mudancaBrusca.ppmAnterior)} PPM** para **${fmtPpm(mudancaBrusca.ppmAtual)} PPM** (${txtDelta} de variação). ` +
-                  `Verifique se houve mudança positiva no processo para padronizá-la.`
-              );
-              indicadores.push(`Melhoria: ${nomeDefeito}`);
-          } else {
-              // BOM (<100)
-              linhas.push(
-                  `**Tendência de Melhoria:** O defeito **"${nomeDefeito}"** apresentou a redução mais relevante do período, caindo **${txtDelta} PPM** ` +
-                  `(${fmtPpm(mudancaBrusca.ppmAnterior)} ➝ ${fmtPpm(mudancaBrusca.ppmAtual)} PPM), contribuindo para a estabilidade geral.`
-              );
+              insights.push({
+                  tipo: "MELHORIA",
+                  titulo: "Melhoria Expressiva",
+                  descricao: `O defeito "${nome}" reduziu ${txtDelta} PPM. Padronize a ação realizada.`,
+                  score: 80
+              });
           }
       }
   }
 
-  /* ======================================================
-      5A. ALERTAS DE REINCIDÊNCIA
-  ====================================================== */
-  if (reincidencia) {
-      if (reincidencia.isReincidente) {
-          linhas.push(
-              `**ALERTA CRÍTICO DE REINCIDÊNCIA:** O agrupamento **"${periodoAtual.principalCausa.nome}"** lidera as falhas por **${reincidencia.periodosConsecutivos} períodos consecutivos**. ` +
-              `Isso caracteriza um problema sistêmico. É mandatória a abertura de RNC e revisão profunda do processo.`
-          );
-          indicadores.push(`Reincidência Crítica: ${reincidencia.periodosConsecutivos}x Top 1`);
-      } 
-      else if (reincidencia.principalCausaAnterior === periodoAtual.principalCausa.nome) {
-          linhas.push(
-              `**Atenção:** O grupo **"${periodoAtual.principalCausa.nome}"** repetiu a liderança do ranking em relação ao período anterior. ` +
-              `Aja agora para evitar que este problema se torne crônico.`
-          );
-      } 
-      else if (reincidencia.principalCausaAnterior) {
-          linhas.push(
-              `**Mudança de Cenário:** O perfil de falhas mudou (Anterior: "${reincidencia.principalCausaAnterior}"). ` +
-              `Verifique se houve alteração de mix de produto ou setup.`
-          );
-      }
-  }
-
-  /* ======================================================
-      ✅ 5B. EFEITO REBOTE (SUSTENTAÇÃO / CURVA V)
-      Logica: T-2 Alto -> T-1 Baixo -> T Alto (Formato em V)
-      AGORA: Apenas PPM (Sem Qtd)
-  ====================================================== */
+  // --- C. EFEITO REBOTE (V-CURVE) - ATUALIZADO COM NOMES REAIS ---
   if (analiseSustentacao) {
-      const { nome, ppmT, ppmT1, ppmT2 } = analiseSustentacao;
+      const { nome, ppmT, ppmT1, ppmT2, labelT1, labelT2 } = analiseSustentacao;
       
-      linhas.push(
-          `**Falha na Sustentação (Efeito Rebote):** Identificamos um padrão crítico no defeito **"${nome}"**. ` +
-          `Este item era alto em T-2 (${fmtPpm(ppmT2)} PPM), reduziu significativamente no período anterior (${fmtPpm(ppmT1)} PPM), ` +
-          `mas **voltou a subir drasticamente agora** para ${fmtPpm(ppmT)} PPM. ` +
-          `Diagnóstico provável: A ação corretiva anterior perdeu eficácia ou houve relaxamento no controle.`
-      );
-      indicadores.push(`Efeito Rebote: ${nome}`);
+      // ✅ Usa os labels se existirem, senão usa o genérico "T-1"
+      const nomePeriodoAnterior = labelT1 || "T-1";
+      const nomePeriodoRetrasado = labelT2 || "T-2";
+
+      insights.push({
+          tipo: "ALERTA",
+          titulo: "Efeito Rebote (Sustentação)",
+          descricao: `"${nome}" caiu em ${nomePeriodoAnterior} (${fmtPpm(ppmT1)} PPM) mas voltou a subir agora (${fmtPpm(ppmT)} PPM). A ação corretiva perdeu eficácia.`,
+          score: 75
+      });
   }
 
-  /* ======================================================
-      6️⃣ ALERTAS DE TENDÊNCIA OCULTA (QUANTIDADE + PPM)
-  ====================================================== */
+  // --- D. TENDÊNCIA DE AUMENTO (GROWTH WATCH) ---
   if (contexto?.tendenciasAlertas && contexto.tendenciasAlertas.length > 0) {
-      const riscoEmergente = contexto.tendenciasAlertas.find(
-          t => t.agrupamento !== periodoAtual.principalCausa.nome && t.crescimento > 0
-      );
-      
-      if (riscoEmergente) {
-          const ppmIniStr = fmtPpm(riscoEmergente.ppmInicial);
-          const ppmFimStr = fmtPpm(riscoEmergente.ppmFinal);
-          // ✅ Usamos a quantidade absoluta para tangibilizar o problema
-          const qtdIniStr = fmt(riscoEmergente.qtdInicial);
-          const qtdFimStr = fmt(riscoEmergente.qtdFinal);
+      const tendenciasRelevantes = contexto.tendenciasAlertas.filter(t => t.crescimento > 0 && t.ppmFinal > 100);
 
-          linhas.push(
-              `**Risco Emergente Detectado:** O agrupamento **${riscoEmergente.agrupamento}** não figura como o maior ofensor hoje, mas apresenta uma curva de crescimento contínua nos últimos 3 meses, ` +
-              `saltando de **${qtdIniStr}** para **${qtdFimStr} ocorrências** (de ${ppmIniStr} para ${ppmFimStr} PPM). ` +
-              `Intervenha antes que ele se torne o Pareto principal.`
-          );
-          indicadores.push(`Tendência Alta: ${riscoEmergente.agrupamento}`);
-      }
+      tendenciasRelevantes.forEach(t => {
+          const ppmIni = t.ppmInicial || 0;
+          const ppmFim = t.ppmFinal || 0;
+          
+          let growthPct = 0;
+          if (ppmIni > 0) {
+              growthPct = ((ppmFim - ppmIni) / ppmIni) * 100;
+          } else if (ppmFim > 0) {
+              growthPct = 100; 
+          }
+
+          if (ppmFim > 1000 || growthPct > 50) {
+              insights.push({
+                  tipo: "CRITICO",
+                  titulo: "Tendência Acentuada",
+                  descricao: `Risco de Escalada: O defeito "${t.agrupamento}" cresceu rapidamente (+${growthPct.toFixed(0)}%) e atingiu ${fmtPpm(ppmFim)} PPM.`,
+                  score: 85
+              });
+          } else {
+              insights.push({
+                  tipo: "ALERTA",
+                  titulo: "Tendência de Aumento",
+                  descricao: `Atenção: O defeito "${t.agrupamento}" iniciou uma curva de subida constante (de ${fmtPpm(ppmIni)} para ${fmtPpm(ppmFim)} PPM).`,
+                  score: 65
+              });
+          }
+      });
   }
 
-  /* ======================================================
-      7️⃣ CONTEXTO OPERACIONAL
-  ====================================================== */
+  // --- E. CONTEXTO OPERACIONAL (INFO) ---
   if (contexto?.turnoMaisAfetado) {
-    linhas.push(
-      `A maior concentração dos defeitos ocorreu no turno **${contexto.turnoMaisAfetado}**. ` +
-        `Recomenda-se auditoria escalonada de processo neste horário.`
-    );
+      insights.push({
+          tipo: "INFO",
+          titulo: "Foco no Turno",
+          descricao: `Maior concentração (${contexto.turnoMaisAfetado}). Recomendado auditoria escalonada neste horário.`,
+          score: 10
+      });
+  }
+  
+  if (contexto?.modeloMaisAfetado) {
+      insights.push({
+          tipo: "INFO",
+          titulo: "Sensibilidade de Modelo",
+          descricao: `O modelo ${contexto.modeloMaisAfetado} foi desproporcionalmente afetado neste período.`,
+          score: 5
+      });
   }
 
-  if (contexto?.modeloMaisAfetado) {
-    linhas.push(
-      `O modelo **${contexto.modeloMaisAfetado}** foi o mais impactado, ` +
-        `indicando possível sensibilidade deste produto ou lote de material.`
-    );
-  }
+  // ORDENAÇÃO DOS INSIGHTS (Score Decrescente)
+  insights.sort((a, b) => b.score - a.score);
 
   /* ======================================================
-      8️⃣ SAÍDA FINAL
+     4️⃣ SAÍDA FINAL
   ====================================================== */
   return {
     titulo: "Diagnóstico do SIGMA-Q AI",
-    texto: linhas.join("\n\n"),
+    resumoGeral: resumoLines.join("\n\n"),
+    insights,
     tendencia,
     variacaoPercentual: variacaoPpmPercent,
     indicadoresChave: indicadores,

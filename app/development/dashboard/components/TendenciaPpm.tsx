@@ -5,8 +5,9 @@ import React, { useState } from "react";
 interface TendenciaPpmProps {
   anterior: number;
   atual: number;
-  labelAnterior: string; // ex: 2025-09
-  labelAtual: string;    // ex: 2025-10
+  labelAnterior: string; // Pode ser YYYY-MM, Sww ou DD/MM
+  labelAtual: string;    
+  tipo?: string;         // Adicionado para o título dinâmico no verso
 }
 
 export default function TendenciaPpm({
@@ -14,33 +15,46 @@ export default function TendenciaPpm({
   atual,
   labelAnterior,
   labelAtual,
+  tipo = "mês",
 }: TendenciaPpmProps) {
   const [flipped, setFlipped] = useState(false);
 
   /* ======================================================
-     UTIL — FORMATA MÊS (YYYY-MM → Setembro)
+      UTIL — FORMATAÇÃO INTELIGENTE DE RÓTULOS
+      Lida com Meses, Semanas e Dias dinamicamente
   ====================================================== */
-  function formatMonthLabel(label: string): string {
+  function formatDynamicLabel(label: string): string {
+    // 1. Caso seja Dia (formato DD/MM enviado pela page.tsx)
+    if (label.includes("/")) {
+      return `Dia ${label}`;
+    }
+
+    // 2. Caso seja Semana (formato Sxx enviado pela page.tsx)
+    if (label.startsWith("S") && !isNaN(Number(label.slice(1)))) {
+      return `Semana ${label.slice(1)}`;
+    }
+
+    // 3. Caso seja Mês (Mantendo sua lógica original YYYY-MM)
     const parts = label.split("-");
-    if (parts.length !== 2) return label;
+    if (parts.length === 2) {
+      const year = Number(parts[0]);
+      const month = Number(parts[1]);
 
-    const year = Number(parts[0]);
-    const month = Number(parts[1]);
+      if (!isNaN(year) && !isNaN(month)) {
+        const date = new Date(year, month - 1, 1);
+        const monthName = date.toLocaleDateString("pt-BR", {
+          month: "long",
+        });
+        return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+      }
+    }
 
-    if (!year || !month) return label;
-
-    const date = new Date(year, month - 1, 1);
-
-    const monthName = date.toLocaleDateString("pt-BR", {
-      month: "long",
-    });
-
-    // Capitaliza primeira letra
-    return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    // Retorno de segurança
+    return label;
   }
 
   /* ======================================================
-     CÁLCULOS
+      CÁLCULOS
   ====================================================== */
   const diff = atual - anterior;
   const percent = anterior > 0 ? (diff / anterior) * 100 : 0;
@@ -69,7 +83,7 @@ export default function TendenciaPpm({
     });
 
   /* ======================================================
-     STYLES — SIGMA-Q FLIP (ANTI-OVERFLOW)
+      STYLES
   ====================================================== */
   const containerStyle: React.CSSProperties = {
     perspective: "1200px",
@@ -106,9 +120,6 @@ export default function TendenciaPpm({
     justifyContent: "space-between",
   };
 
-  /* ======================================================
-     RENDER
-  ====================================================== */
   return (
     <div style={containerStyle}>
       <div
@@ -116,9 +127,7 @@ export default function TendenciaPpm({
         onClick={() => setFlipped(!flipped)}
         title="Clique para ver detalhes"
       >
-        {/* =======================
-            FRENTE — RESUMO
-        ======================= */}
+        {/* FRENTE — RESUMO */}
         <div style={faceStyle}>
           <div style={{ opacity: 0.7, fontSize: 13 }}>
             Tendência de PPM
@@ -151,12 +160,10 @@ export default function TendenciaPpm({
           </div>
         </div>
 
-        {/* =======================
-            VERSO — DETALHE
-        ======================= */}
+        {/* VERSO — DETALHE */}
         <div style={backStyle}>
           <div style={{ opacity: 0.7, fontSize: 13 }}>
-            Comparativo mensal
+            Comparativo {tipo === "dia" ? "diário" : tipo === "semana" ? "semanal" : "mensal"}
           </div>
 
           <div
@@ -168,8 +175,8 @@ export default function TendenciaPpm({
           >
             {/* ANTERIOR */}
             <div>
-              <div style={{ opacity: 0.6, fontSize: 12 }}>
-                {formatMonthLabel(labelAnterior)}
+              <div style={{ opacity: 0.6, fontSize: 11, whiteSpace: "nowrap" }}>
+                {formatDynamicLabel(labelAnterior)}
               </div>
               <div
                 style={{
@@ -180,15 +187,13 @@ export default function TendenciaPpm({
               >
                 {formatPpm(anterior)}
               </div>
-              <div style={{ fontSize: 11, opacity: 0.65 }}>
-                PPM
-              </div>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>PPM</div>
             </div>
 
             {/* ATUAL */}
             <div>
-              <div style={{ opacity: 0.6, fontSize: 12 }}>
-                {formatMonthLabel(labelAtual)}
+              <div style={{ opacity: 0.6, fontSize: 11, whiteSpace: "nowrap" }}>
+                {formatDynamicLabel(labelAtual)}
               </div>
               <div
                 style={{
@@ -199,9 +204,7 @@ export default function TendenciaPpm({
               >
                 {formatPpm(atual)}
               </div>
-              <div style={{ fontSize: 11, opacity: 0.65 }}>
-                PPM
-              </div>
+              <div style={{ fontSize: 10, opacity: 0.65 }}>PPM</div>
             </div>
           </div>
 
@@ -213,12 +216,10 @@ export default function TendenciaPpm({
             }}
           >
             {seta} {formatPpm(Math.abs(diff))}{" "}
-            <span style={{ fontSize: 11, opacity: 0.7 }}>
-              PPM
-            </span>
+            <span style={{ fontSize: 11, opacity: 0.7 }}>PPM</span>
           </div>
 
-          <div style={{ fontSize: 12, opacity: 0.65 }}>
+          <div style={{ fontSize: 11, opacity: 0.65 }}>
             Diferença absoluta entre os períodos
           </div>
         </div>

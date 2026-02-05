@@ -13,8 +13,11 @@ export interface DefeitoRaw {
   "CÓDIGO DA FALHA"?: string;
   "DESCRIÇÃO DA FALHA"?: string;
   
-  // ✅ NOVO CAMPO PARA OCORRÊNCIAS
+  // ✅ CAMPO PARA OCORRÊNCIAS
   "CÓDIGO DO FORNECEDOR"?: string;
+
+  // ✅ NOVO CAMPO: Posição Mecânica (Exatamente como no Excel)
+  "REFERÊNCIA/POSIÇÃO MECÂNICA"?: string;
 }
 
 export function loadDefeitos(): DefeitoRaw[] {

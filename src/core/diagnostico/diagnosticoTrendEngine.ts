@@ -11,7 +11,7 @@ export interface TrendAlert {
   ppmInicial: number;
   ppmFinal: number;
   
-  // ✅ NOVOS CAMPOS: Quantidades absolutas (para mostrar na IA)
+  // ✅ NOVOS CAMPOS: Quantidades absolutas
   qtdInicial: number;
   qtdFinal: number;
 
@@ -25,7 +25,7 @@ export function calcularTendenciaPpm(
   agrupamentoAnalise: { ANALISE: string; AGRUPAMENTO: string }[],
   filtrosAtivos: { modelo?: string[]; categoria?: string[] }
 ): TrendAlert[] {
-  console.log("📈 [TREND ENGINE] Calculando tendências de PPM (Régua > 200 PPM)...");
+  console.log("📈 [TREND ENGINE] Calculando tendências de PPM...");
 
   // 1. Mapeamento de Agrupamento
   const mapAgrupamento = new Map<string, string>();
@@ -34,7 +34,6 @@ export function calcularTendenciaPpm(
   });
 
   // 2. Preparar Dados por Mês (Chave: "ANO-MES")
-  // Estrutura: Map<"2025-1", { producao: 1000, defeitosPorGrupo: Map<Grupo, Qtd> }>
   const timeline = new Map<string, { producao: number; defeitos: Map<string, number> }>();
 
   // Helper para chave de data
@@ -42,7 +41,6 @@ export function calcularTendenciaPpm(
 
   // --- PROCESSAR PRODUÇÃO ---
   producaoRaw.forEach((p) => {
-    // Aplica filtros de modelo/categoria na produção também (para o PPM ser justo)
     if (filtrosAtivos.modelo && !filtrosAtivos.modelo.includes(norm(p.MODELO))) return;
     if (filtrosAtivos.categoria && !filtrosAtivos.categoria.includes(norm(p.CATEGORIA))) return;
 
@@ -58,7 +56,6 @@ export function calcularTendenciaPpm(
   // --- PROCESSAR DEFEITOS ---
   defeitos.forEach((d) => {
     const key = getKey(d.DATA);
-    // Se não tem produção nesse mês, cria a entrada zerada para registrar defeito
     if (!timeline.has(key)) timeline.set(key, { producao: 0, defeitos: new Map() });
 
     const ref = timeline.get(key)!;
@@ -68,14 +65,12 @@ export function calcularTendenciaPpm(
   });
 
   // 3. Identificar os 3 meses mais recentes presentes nos dados
-  // Ordena chaves: ["2024-11", "2024-12", "2025-1"]
   const chavesOrdenadas = [...timeline.keys()].sort((a, b) => {
     const [yA, mA] = a.split("-").map(Number);
     const [yB, mB] = b.split("-").map(Number);
     return yA - yB || mA - mB;
   });
 
-  // Precisamos de pelo menos 3 meses de histórico para ver tendência de 3 meses
   if (chavesOrdenadas.length < 3) {
     console.log("   ⚠️ Histórico insuficiente para tendência (min 3 meses).");
     return [];
@@ -88,7 +83,6 @@ export function calcularTendenciaPpm(
   const alertas: TrendAlert[] = [];
   const gruposDisponiveis = new Set<string>();
   
-  // Coleta todos os grupos possíveis que apareceram nesses meses
   ultimos3Meses.forEach(m => {
       timeline.get(m)?.defeitos.forEach((_, grupo) => gruposDisponiveis.add(grupo));
   });
@@ -108,30 +102,31 @@ export function calcularTendenciaPpm(
       const ppm2 = dadosM2.producao > 0 ? (qtd2 / dadosM2.producao) * 1000000 : 0;
       const ppm3 = dadosM3.producao > 0 ? (qtd3 / dadosM3.producao) * 1000000 : 0;
 
-      // 🛑 REGRA DE OURO ATUALIZADA:
-      // 1. Aumento consecutivo por 3 meses (ppm1 < ppm2 < ppm3)
-      if (ppm3 > ppm2 && ppm2 > ppm1) {
-          
-          const deltaAbsoluto = ppm3 - ppm1;
+      // 🛑 LÓGICA DE TENDÊNCIA FLEXÍVEL (ZIG-ZAG PERMITIDO)
+      // Antes exigíamos: ppm3 > ppm2 && ppm2 > ppm1 (Escadinha perfeita)
+      // Agora exigimos:
+      // 1. O final (3) deve ser maior que o começo (1) -> Crescimento no período
+      // 2. O final (3) deve ser maior que o meio (2) -> Garante que o problema não foi resolvido no fim
+      
+      const cresceuPontaAPonta = ppm3 > ppm1;
+      const cresceuNoFinal = ppm3 > ppm2;
 
-          // 2. Régua de 200 PPM: O aumento real deve ser maior que 200
-          if (deltaAbsoluto > 200) {
+      if (cresceuPontaAPonta && cresceuNoFinal) {
+          
+          // ✅ 2. Régua de Corte (Filtro de Ruído): PPM Final deve ser relevante (> 100)
+          if (ppm3 > 100) {
               
-              // Calcula porcentagem apenas para exibição/ordenação secundária
               const crescimentoTotal = ppm1 > 0 
                 ? ((ppm3 - ppm1) / ppm1) * 100 
-                : 100; // Se partiu de 0, considera 100%
+                : 100;
 
               alertas.push({
                   agrupamento: grupo,
-                  // ⚠️ REMOVIDO Math.round() para manter a precisão (ex: 261.16)
                   ppmAtual: ppm3, 
                   
-                  // ✅ Valores reais para a IA
                   ppmInicial: ppm1,
                   ppmFinal: ppm3,
 
-                  // ✅ Valores de quantidade
                   qtdInicial: qtd1,
                   qtdFinal: qtd3,
                   
@@ -142,7 +137,6 @@ export function calcularTendenciaPpm(
       }
   });
 
-  // Retorna ordenado pelo MAIOR DELTA ABSOLUTO (Quantidade real de aumento)
-  // Isso garante que quem subiu 1000 PPM apareça antes de quem subiu 201 PPM
+  // Retorna ordenado pelo MAIOR DELTA ABSOLUTO para priorizar os maiores problemas
   return alertas.sort((a, b) => (b.ppmFinal - b.ppmInicial) - (a.ppmFinal - a.ppmInicial));
 }

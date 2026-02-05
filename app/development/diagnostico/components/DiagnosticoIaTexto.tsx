@@ -1,210 +1,291 @@
 "use client";
 
 import React from "react";
+import { DiagnosticoIaTexto as DiagnosticoType, InsightCard } from "../hooks/diagnosticoTypes";
+// ✅ Importação dos ícones SVG (Lucide React)
+import { 
+  AlertTriangle, 
+  TrendingUp, 
+  CheckCircle2, 
+  Info, 
+  FileText,
+  Bot
+} from "lucide-react";
 
 /* ======================================================
-   PARSER DE TEXTO PARA NEGRITO
-   Transforma: "Olá **Mundo**" em <span>Olá <strong>Mundo</strong></span>
+   PARSER DE TEXTO (Estilo Moderno - Sem "Caixa")
 ====================================================== */
 function renderHighlightedText(text: string) {
-  // Divide o texto onde encontrar **...**
   const parts = text.split(/(\*\*.*?\*\*)/g);
-
   return parts.map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
-      // Remove os asteriscos e renderiza com estilo
       const content = part.slice(2, -2);
       return (
         <strong
           key={index}
           style={{
-            color: "#ffffff",
+            color: "#38bdf8", // Azul Cyan vibrante para destaque no dark mode
             fontWeight: 700,
-            background: "rgba(255,255,255,0.1)", // Fundo sutil para destacar
-            padding: "0 4px",
-            borderRadius: 4,
+            letterSpacing: "0.02em"
           }}
         >
           {content}
         </strong>
       );
     }
-    // Retorna texto normal
     return <span key={index}>{part}</span>;
   });
 }
 
+/* ======================================================
+   SUB-COMPONENTE: CARD DE INSIGHT (DESIGN "LEFT BORDER")
+====================================================== */
+function InsightCardItem({ card }: { card: InsightCard }) {
+    // Configuração visual baseada no tipo
+    const config = {
+        CRITICO: {
+            color: "#EF4444", // Vermelho
+            icon: AlertTriangle,
+            bgHover: "rgba(239, 68, 68, 0.05)"
+        },
+        ALERTA: {
+            color: "#F59E0B", // Laranja/Amarelo
+            icon: TrendingUp, // Seta subindo ou Alerta
+            bgHover: "rgba(245, 158, 11, 0.05)"
+        },
+        MELHORIA: {
+            color: "#22C55E", // Verde
+            icon: CheckCircle2,
+            bgHover: "rgba(34, 197, 94, 0.05)"
+        },
+        INFO: {
+            color: "#3B82F6", // Azul
+            icon: Info,
+            bgHover: "rgba(59, 130, 246, 0.05)"
+        }
+    }[card.tipo];
+
+    const IconComponent = config.icon;
+
+    return (
+        <div style={{
+            background: "rgba(255, 255, 255, 0.03)", // Fundo muito sutil
+            borderLeft: `4px solid ${config.color}`, // ✅ Borda Lateral Espessa
+            borderRadius: "4px 12px 12px 4px", // Arredondado apenas na direita
+            padding: "14px 16px",
+            marginBottom: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            transition: "all 0.2s ease",
+            border: "1px solid rgba(255,255,255,0.05)",
+            borderLeftWidth: 4, // Garante override
+            borderLeftColor: config.color
+        }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <IconComponent size={18} color={config.color} strokeWidth={2.5} />
+                <span style={{ 
+                    fontWeight: 700, 
+                    fontSize: "0.8rem", 
+                    color: config.color, 
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em"
+                }}>
+                    {card.titulo}
+                </span>
+            </div>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5 }}>
+                {card.descricao}
+            </p>
+        </div>
+    );
+}
+
+/* ======================================================
+   COMPONENTE PRINCIPAL
+====================================================== */
 export default function DiagnosticoIaTexto({
   data,
 }: {
-  data?: {
-    titulo: string;
-    texto: string;
-    // Tipagem atualizada
-    tendencia?: "melhora" | "piora" | "estavel" | "indefinido";
-    indicadoresChave: string[];
-  };
+  data?: DiagnosticoType;
 }) {
-  // ✅ SAFETY CHECK
+  
+  // SAFETY CHECK
   if (!data) {
     return (
-      <div
-        style={{
-          background: "rgba(255,255,255,0.04)",
-          borderRadius: 18,
-          padding: 28,
-          color: "#94a3b8",
-          textAlign: "center",
-          border: "1px dashed rgba(255,255,255,0.1)",
-        }}
-      >
-        Aguardando dados para gerar o diagnóstico...
+      <div style={emptyStyle}>
+        <Bot size={32} style={{ marginBottom: 12, opacity: 0.5 }} />
+        <p>Aguardando dados para gerar o diagnóstico...</p>
       </div>
     );
   }
 
-  // ✅ DEFINIÇÃO VISUAL BASEADA NA TENDÊNCIA
-  const config = {
-    melhora: {
-      color: "#22c55e", // Verde (Bom)
-      bg: "rgba(34, 197, 94, 0.08)",
-      border: "rgba(34, 197, 94, 0.2)",
-      label: "CENÁRIO POSITIVO",
-      icon: "📉", // Gráfico descendo (menos defeitos)
-    },
-    piora: {
-      color: "#ef4444", // Vermelho (Ruim)
-      bg: "rgba(239, 68, 68, 0.08)",
-      border: "rgba(239, 68, 68, 0.2)",
-      label: "CENÁRIO NEGATIVO",
-      icon: "📈", // Gráfico subindo (mais defeitos)
-    },
-    estavel: {
-      color: "#3b82f6", // Azul (Neutro)
-      bg: "rgba(59, 130, 246, 0.08)",
-      border: "rgba(59, 130, 246, 0.2)",
-      label: "ESTÁVEL",
-      icon: "", // ✅ REMOVIDO: Emoji de seta azul retirado conforme solicitado
-    },
-    indefinido: {
-      color: "#94a3b8",
-      bg: "rgba(255,255,255,0.04)",
-      border: "rgba(255,255,255,0.1)",
-      label: "ANÁLISE DE PERÍODO",
-      icon: "📊",
-    },
+  const safeInsights = data.insights || [];
+
+  // Configuração visual do Badge de Tendência
+  const headerConfig = {
+    melhora: { color: "#22c55e", label: "CENÁRIO POSITIVO", bg: "rgba(34, 197, 94, 0.15)" },
+    piora: { color: "#ef4444", label: "CENÁRIO NEGATIVO", bg: "rgba(239, 68, 68, 0.15)" },
+    estavel: { color: "#3b82f6", label: "ESTÁVEL", bg: "rgba(59, 130, 246, 0.15)" },
+    indefinido: { color: "#94a3b8", label: "ANÁLISE DE PERÍODO", bg: "rgba(255,255,255,0.1)" },
   }[data.tendencia || "indefinido"];
 
   return (
-    <div
-      style={{
-        background: config.bg,
-        border: `1px solid ${config.border}`,
-        borderRadius: 16,
-        padding: 24,
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* BARRA LATERAL COLORIDA */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 4,
-          background: config.color,
-        }}
-      />
+    <div style={containerStyle}>
+        
+        {/* ================= HEADER ================= */}
+        <div style={headerStyle}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ 
+                    width: 32, height: 32, borderRadius: 8, 
+                    background: "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)", 
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 4px 12px rgba(59, 130, 246, 0.4)"
+                }}>
+                    <Bot size={18} color="#fff" />
+                </div>
+                <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600, color: "#fff", letterSpacing: "0.02em" }}>
+                    {data.titulo}
+                </h2>
+            </div>
 
-      {/* HEADER */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Só renderiza o span se houver ícone, para não ficar buraco vazio */}
-          {config.icon && <span style={{ fontSize: 24 }}>{config.icon}</span>}
-          <h2
-            style={{
-              fontSize: "1.2rem",
-              fontWeight: 700,
-              color: "#f8fafc",
-              letterSpacing: -0.5,
-            }}
-          >
-            {data.titulo}
-          </h2>
-        </div>
-
-        <span
-          style={{
-            padding: "6px 12px",
-            borderRadius: 8,
-            fontSize: 11,
-            fontWeight: 800,
-            background: config.color,
-            color: "#0f172a", // Contraste preto no fundo colorido
-            textTransform: "uppercase",
-            letterSpacing: 0.8,
-          }}
-        >
-          {config.label}
-        </span>
-      </div>
-
-      {/* TEXTO PRINCIPAL (COM PARSER) */}
-      <div
-        style={{
-          fontSize: 15,
-          lineHeight: 1.7,
-          color: "#cbd5e1",
-          display: "flex",
-          flexDirection: "column",
-          gap: 12, // Espaço entre parágrafos
-        }}
-      >
-        {data.texto.split("\n\n").map((paragrafo, idx) => (
-          <p key={idx}>{renderHighlightedText(paragrafo)}</p>
-        ))}
-      </div>
-
-      {/* RODAPÉ (INDICADORES) */}
-      {data.indicadoresChave && data.indicadoresChave.length > 0 && (
-        <div
-          style={{
-            marginTop: 4,
-            paddingTop: 16,
-            borderTop: `1px solid ${config.border}`,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          {data.indicadoresChave.map((ind, idx) => (
-            <span
-              key={idx}
-              style={{
-                fontSize: 12,
-                color: "#e2e8f0",
-                background: "rgba(0,0,0,0.2)",
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: "1px solid rgba(255,255,255,0.05)",
-              }}
-            >
-              • {ind}
+            <span style={{ 
+                padding: "6px 12px", borderRadius: 6, 
+                background: headerConfig.bg, 
+                color: headerConfig.color, 
+                border: `1px solid ${headerConfig.color}40`, // 40 = 25% opacity hex
+                fontWeight: 700, fontSize: "0.7rem", letterSpacing: "0.08em" 
+            }}>
+                {headerConfig.label}
             </span>
-          ))}
         </div>
-      )}
+
+        {/* ================= GRID CONTENT ================= */}
+        <div style={gridStyle}>
+            
+            {/* LADO ESQUERDO: RESUMO NARRATIVO */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                    <FileText size={16} color="#64748b" />
+                    <h3 style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", margin: 0, letterSpacing: "0.05em" }}>
+                        Resumo Executivo
+                    </h3>
+                </div>
+                
+                <div style={{ 
+                    fontSize: "0.95rem", 
+                    lineHeight: 1.8, 
+                    color: "#e2e8f0", // Texto mais claro para leitura
+                    display: "flex", 
+                    flexDirection: "column", 
+                    gap: 16 
+                }}>
+                    {(data.resumoGeral || "Analisando dados...").split("\n\n").map((paragrafo, idx) => (
+                        <p key={idx} style={{ margin: 0 }}>{renderHighlightedText(paragrafo)}</p>
+                    ))}
+                </div>
+
+                {/* KPI CHIPS */}
+                <div style={{ marginTop: "auto", paddingTop: 24, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {(data.indicadoresChave || []).map((ind, i) => (
+                        <span key={i} style={chipStyle}>
+                            {ind}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            {/* SEPARADOR VERTICAL (Apenas visual) */}
+            <div style={{ width: 1, background: "rgba(255,255,255,0.1)", margin: "0 10px" }} />
+
+            {/* LADO DIREITO: INSIGHT CARDS */}
+            <div style={{ width: "35%", minWidth: 320, display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                    <TrendingUp size={16} color="#64748b" />
+                    <h3 style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", margin: 0, letterSpacing: "0.05em" }}>
+                        Alertas & Insights
+                    </h3>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {safeInsights.length === 0 ? (
+                        <div style={emptyCardStyle}>
+                            <CheckCircle2 size={24} color="#22c55e" style={{ opacity: 0.5, marginBottom: 8 }} />
+                            <span>Nenhum alerta crítico detectado no período.</span>
+                        </div>
+                    ) : (
+                        safeInsights.map((card, idx) => (
+                            <InsightCardItem key={idx} card={card} />
+                        ))
+                    )}
+                </div>
+            </div>
+
+        </div>
     </div>
   );
 }
+
+/* ======================================================
+   ESTILOS
+====================================================== */
+const containerStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.02", 
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: 0, // Padding controlado internamente
+    backdropFilter: "blur(12px)",
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+    overflow: "hidden"
+};
+
+const headerStyle: React.CSSProperties = {
+    display: "flex", 
+    justifyContent: "space-between", 
+    alignItems: "center", 
+    padding: "20px 24px",
+    background: "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+    borderBottom: "1px solid rgba(255,255,255,0.08)"
+};
+
+const gridStyle: React.CSSProperties = {
+    display: "flex",
+    gap: 20,
+    padding: "24px",
+    flexWrap: "wrap", 
+};
+
+const chipStyle: React.CSSProperties = {
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    padding: "6px 12px",
+    borderRadius: 6,
+    color: "#94a3b8",
+    letterSpacing: "0.02em"
+};
+
+const emptyStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.02)",
+    borderRadius: 16,
+    padding: 40,
+    color: "#64748b",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "1px dashed rgba(255,255,255,0.1)",
+};
+
+const emptyCardStyle: React.CSSProperties = {
+    padding: 30, 
+    textAlign: "center", 
+    color: "#64748b", 
+    border: "1px dashed rgba(255,255,255,0.1)", 
+    borderRadius: 12,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    fontSize: "0.85rem"
+};

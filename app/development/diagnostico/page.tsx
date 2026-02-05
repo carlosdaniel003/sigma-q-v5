@@ -2,10 +2,10 @@
 "use client";
 
 import SidebarFiltros from "./components/SidebarFiltros";
-import KpiPrincipalCausa from "./components/KpiPrincipalCausa";
-import KpiPrincipalDefeito from "./components/KpiPrincipalDefeito";
+import KpiPrincipalCausa from "./components/KpiPrincipalCausa"; // Representa o Agrupamento
+import KpiPrincipalDefeito from "./components/KpiPrincipalDefeito"; // Representa a Causa Específica
 import KpiDefeitoCritico from "./components/KpiDefeitoCritico";
-import KpiStatusGeral from "./components/KpiStatusGeral";
+import KpiStatusGeral from "./components/KpiStatusGeral"; // Representa a Tendência
 import DefeitosCriticosNpr from "./components/DefeitosCriticosNpr";
 import PrincipaisCausas from "./components/PrincipaisCausas";
 import DiagnosticoIaTexto from "./components/DiagnosticoIaTexto";
@@ -110,7 +110,7 @@ export default function DiagnosticoIaPage() {
                             padding: "8px 16px", 
                             background: "rgba(59, 130, 246, 0.1)", 
                             color: "#60a5fa", 
-                            borderRadius: 8,
+                            borderRadius: 8, 
                             fontSize: "0.9rem",
                             fontWeight: 500,
                             border: "1px solid rgba(59, 130, 246, 0.2)"
@@ -157,9 +157,9 @@ export default function DiagnosticoIaPage() {
                             padding: "6px 16px", 
                             background: "rgba(16, 185, 129, 0.15)", 
                             color: "#34d399", 
-                            borderRadius: 20,
+                            borderRadius: 20, 
                             fontSize: "0.9rem",
-                            fontWeight: 700,
+                            fontWeight: 700, 
                             border: "1px solid rgba(16, 185, 129, 0.3)",
                             letterSpacing: 0.5
                         }}
@@ -170,7 +170,7 @@ export default function DiagnosticoIaPage() {
             ) : (
                 /* 3️⃣ CENÁRIO: PADRÃO (COM DADOS) */
                 <>
-                    {/* LINHA 1: KPIS SUPERIORES */}
+                    {/* LINHA 1: KPIS SUPERIORES (Reordenados) */}
                     <div
                       style={{
                         display: "grid",
@@ -178,9 +178,16 @@ export default function DiagnosticoIaPage() {
                         gap: 16,
                       }}
                     >
-                      <KpiPrincipalCausa data={data.principalCausa} />
-                      <KpiPrincipalDefeito data={data.principalDefeito} />
+                      {/* 1. Defeito Crítico */}
                       <KpiDefeitoCritico data={data.defeitoCritico} />
+                      
+                      {/* 2. Principal Agrupamento (Causa) */}
+                      <KpiPrincipalCausa data={data.principalCausa} />
+                      
+                      {/* 3. Principal Causa (Defeito) */}
+                      <KpiPrincipalDefeito data={data.principalDefeito} />
+                      
+                      {/* 4. Tendência de Qualidade (Status Geral) */}
                       <KpiStatusGeral data={data.statusGeral} />
                     </div>
 

@@ -24,29 +24,20 @@ function buildGroupKey(row: ProductionInputRow): string {
 }
 
 /* ======================================================
-   🔥 PARSER ROBUSTO DE DATA (SEM SHIFT DE FUSO)
-   - Excel (serial)
-   - String
-   - Date
-   REGRA: data civil → fixar 12:00
+   🔥 PARSER ROBUSTO DE DATA
 ====================================================== */
 function parseExcelDate(value: any): Date | null {
   if (!value) return null;
 
   let date: Date | null = null;
 
-  // Já é Date
   if (value instanceof Date && !isNaN(value.getTime())) {
     date = new Date(value.getTime());
   }
-
-  // Número serial do Excel
   else if (typeof value === "number") {
     const excelEpoch = new Date(1899, 11, 30);
     date = new Date(excelEpoch.getTime() + value * 86400000);
   }
-
-  // String
   else if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return null;
@@ -64,16 +55,12 @@ function parseExcelDate(value: any): Date | null {
   }
 
   if (!date || isNaN(date.getTime())) return null;
-
-  // 🔒 trava no meio do dia (anti UTC/DST)
   date.setHours(12, 0, 0, 0);
-
   return date;
 }
 
 /* ======================================================
-   🔥 LOAD RAW — PRODUÇÃO (EXCEL → ProductionInputRow[])
-   → USADO PELO DASHBOARD E PPM ENGINE
+   🔥 LOAD RAW — PRODUÇÃO (Agora com Mapeamento Seguro)
 ====================================================== */
 export function loadProductionRaw(): ProductionInputRow[] {
   const filePath = path.join(
@@ -91,13 +78,30 @@ export function loadProductionRaw(): ProductionInputRow[] {
   const workbook = XLSX.read(buffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-  const rows = XLSX.utils.sheet_to_json<ProductionInputRow>(sheet);
+  const rawRows = XLSX.utils.sheet_to_json<any>(sheet);
 
-  return rows;
+  // ✅ MAPEAR COLUNAS PARA O PADRÃO DO SISTEMA
+  // Procura por variações de nomes comuns no Excel
+  return rawRows.map(r => {
+      // Tenta achar a quantidade em várias colunas possíveis
+      const rawQtd = r.QTY_GERAL ?? r.Qty_Geral ?? r.QUANTIDADE ?? r.Quantidade ?? r.PRODUZIDO ?? r.Produzido ?? 0;
+      
+      // Tenta achar o turno
+      const rawTurno = r.TURNO ?? r.Turno ?? "Geral";
+
+      return {
+          DATA: r.DATA || r.Data || r.Date,
+          // Normaliza Categoria e Modelo para evitar falhas de case
+          MODELO: norm(r.MODELO || r.Modelo),
+          CATEGORIA: norm(r.CATEGORIA || r.Categoria),
+          TURNO: String(rawTurno).toUpperCase(),
+          QTY_GERAL: Number(rawQtd)
+      };
+  });
 }
 
 /* ======================================================
-   NORMALIZA PRODUÇÃO (COM DATA CORRETA)
+   NORMALIZA PRODUÇÃO (Mantido igual, mas agora recebe dados limpos)
 ====================================================== */
 export function normalizeProductionForPpm(
   rows: ProductionInputRow[]
@@ -111,8 +115,7 @@ export function normalizeProductionForPpm(
     const groupKey = buildGroupKey(r);
     if (!groupKey) continue;
 
-    // 🔥 DATA DA PRODUÇÃO (parser robusto)
-    const dataProducao = parseExcelDate((r as any).DATA);
+    const dataProducao = parseExcelDate(r.DATA);
 
     if (!map.has(groupKey)) {
       map.set(groupKey, {
@@ -127,7 +130,6 @@ export function normalizeProductionForPpm(
     const item = map.get(groupKey)!;
     item.produzido += produzido;
 
-    // 🔥 guarda somente datas válidas
     if (dataProducao) {
       item.datasProducao!.push(dataProducao);
     }

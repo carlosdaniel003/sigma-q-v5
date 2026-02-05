@@ -1,3 +1,4 @@
+// C:\Users\cdaniel\sigma-q-v3\app\development\dashboard\components\IndiceDefeitosCard.tsx
 "use client";
 
 import React from "react";
@@ -13,6 +14,14 @@ export default function IndiceDefeitosCard({
 }: IndiceDefeitosCardProps) {
   const isAboveTarget =
     real !== null ? real > meta : false;
+
+  // ✅ Função auxiliar para garantir a formatação padrão PT-BR (1.000,00)
+  const formatPpm = (valor: number) => {
+    return valor.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
 
   return (
     <div
@@ -38,7 +47,8 @@ export default function IndiceDefeitosCard({
           marginTop: 8,
         }}
       >
-        Meta: {meta.toLocaleString()} PPM
+        {/* ✅ Meta formatada */}
+        Meta: {formatPpm(meta)} PPM
       </div>
 
       <div
@@ -53,7 +63,7 @@ export default function IndiceDefeitosCard({
       >
         Real:{" "}
         {real !== null
-          ? `${real.toFixed(2)} PPM`
+          ? `${formatPpm(real)} PPM` // ✅ Real formatado igual à meta
           : "—"}
       </div>
     </div>

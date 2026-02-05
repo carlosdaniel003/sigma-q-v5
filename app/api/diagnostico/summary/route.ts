@@ -68,21 +68,17 @@ function getRanges(tipo: "semana" | "mes", valor: number, ano: number) {
       };
   };
 
-  // ✅ LOOKBACK: Histórico de 13 períodos para garantir sequência de reincidência correta
   const LOOKBACK = 13;
 
   if (tipo === "semana") {
-    // T (Atual)
     let semAnt = valor - 1;
     let anoAnt = ano;
     if (semAnt < 1) { semAnt = 52; anoAnt--; }
 
-    // T-2 (Antepenúltimo)
     let semAnt2 = semAnt - 1;
     let anoAnt2 = anoAnt;
     if (semAnt2 < 1) { semAnt2 = 52; anoAnt2--; }
 
-    // Range Tendência
     let semStartTrend = valor - LOOKBACK;
     let anoStartTrend = ano;
     while (semStartTrend < 1) {
@@ -98,17 +94,14 @@ function getRanges(tipo: "semana" | "mes", valor: number, ano: number) {
     };
 
   } else {
-    // T (Atual)
     let mesAnt = valor - 1;
     let anoAnt = ano;
     if (mesAnt < 1) { mesAnt = 12; anoAnt--; }
 
-    // T-2 (Antepenúltimo)
     let mesAnt2 = mesAnt - 1;
     let anoAnt2 = anoAnt;
     if (mesAnt2 < 1) { mesAnt2 = 12; anoAnt2--; }
 
-    // Range Tendência
     let mesStartTrend = valor - LOOKBACK;
     let anoStartTrend = ano;
     while (mesStartTrend < 1) {
@@ -183,17 +176,16 @@ function aplicarPenteFinoDatas(
 }
 
 /* ======================================================
-   ✅ HELPER — RECUPERAR PERÍODO ANTERIOR (KEY)
+   HELPER — RECUPERAR PERÍODO ANTERIOR (KEY)
 ====================================================== */
 function getPreviousKey(currentKey: number, tipo: "semana" | "mes"): number {
     const ano = Math.floor(currentKey / 100);
-    const periodo = currentKey % 100; // Mes ou Semana
+    const periodo = currentKey % 100; 
 
     if (tipo === "mes") {
         if (periodo === 1) return (ano - 1) * 100 + 12;
         return currentKey - 1;
     } else {
-        // Semana
         if (periodo === 1) {
             return (ano - 1) * 100 + 52; 
         }
@@ -202,7 +194,7 @@ function getPreviousKey(currentKey: number, tipo: "semana" | "mes"): number {
 }
 
 /* ======================================================
-   ✅ HELPER — REINCIDÊNCIA ESTRITA (SEQUENCIAL)
+   HELPER — REINCIDÊNCIA ESTRITA (SEQUENCIAL)
 ====================================================== */
 function calcularSequenciaReincidencia(
     dadosTendencia: DefeitoFiltrado[],
@@ -214,11 +206,9 @@ function calcularSequenciaReincidencia(
 ) {
     if (!principalCausaAtual) return 0;
     
-    // 1. Mapear Agrupamentos
     const mapAgrupamento = new Map<string, string>();
     agrupamentos.forEach((r) => mapAgrupamento.set(norm(r.ANALISE), norm(r.AGRUPAMENTO)));
     
-    // 2. Construir Ranking por Período
     const rankingPorPeriodo = new Map<number, Map<string, number>>();
     dadosTendencia.forEach(d => {
         const keyPeriodo = tipo === "mes" ? (d.ANO * 100 + (d.DATA.getMonth() + 1)) : (d.ANO * 100 + d.SEMANA);
@@ -228,17 +218,15 @@ function calcularSequenciaReincidencia(
         periodoMap.set(grupo, (periodoMap.get(grupo) || 0) + d.QUANTIDADE);
     });
 
-    let streak = 1; // Começa com o atual
+    let streak = 1; 
     let iterKey = currentYear * 100 + currentPeriodValue;
 
-    // 3. Iterar para trás estritamente
     const LOOKBACK_LIMIT = 13; 
     
     for (let i = 0; i < LOOKBACK_LIMIT; i++) {
         iterKey = getPreviousKey(iterKey, tipo);
         
         if (!rankingPorPeriodo.has(iterKey)) {
-            // 🛑 SE NÃO TEM DADOS (BURACO), A SEQUÊNCIA QUEBRA.
             break;
         }
 
@@ -246,9 +234,9 @@ function calcularSequenciaReincidencia(
         const topDoPeriodo = [...periodoMap.entries()].sort((a, b) => b[1] - a[1])[0];
 
         if (topDoPeriodo && topDoPeriodo[0] === principalCausaAtual) {
-            streak++; // Continua a sequência
+            streak++; 
         } else {
-            break; // 🛑 Outro líder assumiu, sequência quebra.
+            break; 
         }
     }
 
@@ -351,29 +339,23 @@ function corrigirInconsistenciaAgregacao(agregacao: any) {
     if (!agregacao || !agregacao.topCausas) return;
 
     agregacao.topCausas.forEach((grupo: any) => {
-        // ✅ FIX: Acessa 'detalhes' (nome correto da propriedade no Agregator)
         const filhos = grupo.detalhes || []; 
         if (Array.isArray(filhos) && filhos.length > 0) {
-            // ✅ FIX: Soma 'ocorrencias' (nome correto da propriedade do item)
             const somaReal = filhos.reduce((acc: number, item: any) => acc + (item.ocorrencias || 0), 0);
             
-            // Se houver divergência, atualiza o total do grupo
             if (somaReal > 0 && somaReal !== grupo.ocorrencias) {
                 grupo.ocorrencias = somaReal;
             }
         }
     });
 
-    // ✅ FIX: Reordena usando 'ocorrencias'
     agregacao.topCausas.sort((a: any, b: any) => (b.ocorrencias || 0) - (a.ocorrencias || 0));
 
-    // Se a Causa Principal mudou devido à correção, atualiza a referência
     if (agregacao.topCausas.length > 0) {
         const top1 = agregacao.topCausas[0];
         agregacao.principalCausa = {
             ...agregacao.principalCausa,
             nome: top1.nome,
-            // ✅ FIX: Usa 'ocorrencias' para garantir que não seja undefined
             ocorrencias: top1.ocorrencias || 0
         };
     }
@@ -388,10 +370,8 @@ function detectarCurvaVGlobal(
     dadosT1: DefeitoFiltrado[], prodT1: number,
     dadosT2: DefeitoFiltrado[], prodT2: number
 ) {
-    // Se não tem produção em algum dos períodos, não dá pra calcular V-Curve
     if (prodT <= 0 || prodT1 <= 0 || prodT2 <= 0) return null;
 
-    // Mapas de contagem
     const mapT = new Map<string, number>();
     const mapT1 = new Map<string, number>();
     const mapT2 = new Map<string, number>();
@@ -400,9 +380,7 @@ function detectarCurvaVGlobal(
     dadosT1.forEach(d => mapT1.set(d.ANALISE, (mapT1.get(d.ANALISE) || 0) + d.QUANTIDADE));
     dadosT2.forEach(d => mapT2.set(d.ANALISE, (mapT2.get(d.ANALISE) || 0) + d.QUANTIDADE));
 
-    // Universo de defeitos (União de todos)
     const todos = new Set([...mapT.keys(), ...mapT1.keys(), ...mapT2.keys()]);
-    
     const candidatos: any[] = [];
 
     todos.forEach(nome => {
@@ -414,11 +392,6 @@ function detectarCurvaVGlobal(
         const ppmT1 = (qtdT1 / prodT1) * 1000000;
         const ppmT2 = (qtdT2 / prodT2) * 1000000;
 
-        // Regra do V:
-        // 1. T-2 era relevante (> 50 PPM) e teve ocorrências (>0)
-        // 2. T-1 caiu significativamente ( < 70% de T-2)
-        // 3. T subiu significativamente ( > 130% de T-1)
-        
         const relevante = ppmT2 > 50 && qtdT2 > 0; 
         const caiu = ppmT1 < (ppmT2 * 0.7); 
         const subiu = ppmT > (ppmT1 * 1.3);
@@ -427,15 +400,58 @@ function detectarCurvaVGlobal(
             candidatos.push({
                 nome,
                 ppmT, ppmT1, ppmT2,
-                qtdT, qtdT1, qtdT2, // ✅ Adicionado Quantidades para o texto
-                score: ppmT - ppmT1 // Quanto maior o rebote, mais grave
+                qtdT, qtdT1, qtdT2, 
+                score: ppmT - ppmT1 
             });
         }
     });
 
-    // Retorna o pior caso (maior rebote)
     candidatos.sort((a, b) => b.score - a.score);
     return candidatos.length > 0 ? candidatos[0] : null;
+}
+
+/* ======================================================
+   ✅ HELPER: MONTAR LABELS DE PERÍODOS ANTERIORES
+   Converte T-1 e T-2 em "Outubro" ou "Semana 41"
+====================================================== */
+function montarLabelsSustentacao(
+    tipo: "semana" | "mes", 
+    valorAtual: number, 
+    anoAtual: number
+) {
+    const nomeMeses = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
+
+    let valorT1 = valorAtual - 1;
+    let valorT2 = valorAtual - 2;
+
+    // Ajuste de virada de ano para T-1
+    if (tipo === "mes") {
+        if (valorT1 < 1) valorT1 = 12;
+    } else {
+        if (valorT1 < 1) valorT1 = 52;
+    }
+
+    // Ajuste de virada de ano para T-2
+    if (tipo === "mes") {
+        if (valorT2 < 1) valorT2 = 12 + valorT2; // Se 0 -> 12, se -1 -> 11
+    } else {
+        if (valorT2 < 1) valorT2 = 52 + valorT2;
+    }
+
+    if (tipo === "mes") {
+        return {
+            labelT1: nomeMeses[valorT1 - 1],
+            labelT2: nomeMeses[valorT2 - 1]
+        };
+    } else {
+        return {
+            labelT1: `Semana ${valorT1}`,
+            labelT2: `Semana ${valorT2}`
+        };
+    }
 }
 
 export async function GET(req: Request) {
@@ -469,13 +485,8 @@ export async function GET(req: Request) {
     let dadosAtual = filtrarDefeitosDiagnostico(defeitosRaw, { ...filtrosBase, periodo: { semanas: ranges.atual.semanas } }, ocorrenciasIgnorar);
     dadosAtual = aplicarPenteFinoDatas(dadosAtual, ranges.atual);
 
-    // FMEA Dinâmico
     const fmeaDinamico = calcularFmeaDinamico(fmeaEstatico, dadosAtual);
-
-    // Agregação Inicial
     const agregacaoAtual = agruparDiagnostico(dadosAtual, agrupamentos, fmeaDinamico);
-
-    // FIX INCONSISTÊNCIA (Soma Real)
     corrigirInconsistenciaAgregacao(agregacaoAtual);
 
     const totalDefeitosAtual = dadosAtual.reduce((acc, d) => acc + d.QUANTIDADE, 0);
@@ -513,16 +524,16 @@ export async function GET(req: Request) {
         6. DETECÇÃO DE MUDANÇA BRUSCA & CURVA V
     ------------------------------------------------------ */
     const maiorSpike = detectarMaiorSpike(dadosAtual, totalProducaoAtual, dadosAnterior, totalProducaoAnterior);
-    
-    // ✅ NOVA ANÁLISE: Busca o padrão em V e retorna qtds e ppm
     const padraoCurvaV = detectarCurvaVGlobal(dadosAtual, totalProducaoAtual, dadosAnterior, totalProducaoAnterior, dadosAnt2, totalProducaoAnt2);
+
+    // ✅ GERAÇÃO DOS LABELS HUMANIZADOS
+    const labelsSustentacao = montarLabelsSustentacao(tipo, valor, ano);
 
     /* ------------------------------------------------------
         7. TENDÊNCIAS & REINCIDÊNCIA (HISTÓRICO EXPANDIDO)
     ------------------------------------------------------ */
     const dadosParaTendencia = filtrarDefeitosDiagnostico(defeitosRaw, { ...filtrosBase, periodo: { semanas: ranges.rangeTendencia.semanas } }, ocorrenciasIgnorar);
     
-    // ✅ REINCIDÊNCIA ESTRITA
     const streakReincidencia = calcularSequenciaReincidencia(
         dadosParaTendencia, 
         agrupamentos, 
@@ -552,7 +563,7 @@ export async function GET(req: Request) {
           anterior: ppmAnterior,
           producaoAtual: totalProducaoAtual
       },
-      // ✅ Passamos o objeto completo do V-Curve (Nome, PPMs e QTDs)
+      // ✅ Passamos os labels humanizados para a Engine de IA
       analiseSustentacao: padraoCurvaV ? {
           nome: padraoCurvaV.nome,
           ppmT: padraoCurvaV.ppmT,
@@ -560,7 +571,9 @@ export async function GET(req: Request) {
           ppmT2: padraoCurvaV.ppmT2,
           qtdT: padraoCurvaV.qtdT,
           qtdT1: padraoCurvaV.qtdT1,
-          qtdT2: padraoCurvaV.qtdT2
+          qtdT2: padraoCurvaV.qtdT2,
+          labelT1: labelsSustentacao.labelT1,
+          labelT2: labelsSustentacao.labelT2
       } : undefined,
       mudancaBrusca: maiorSpike ? {
           nome: maiorSpike.nome,

@@ -27,6 +27,9 @@ export interface DefeitoFiltrado {
   CODIGO_FALHA: string;
   DESCRICAO_FALHA: string;
   QUANTIDADE: number;
+  
+  // ✅ NOVO CAMPO: Essencial para o Drill-down de nível 4
+  REFERENCIA_POSICAO_MECANICA?: string;
 }
 
 /* ======================================================
@@ -123,6 +126,10 @@ export function filtrarDefeitosDiagnostico(
       continue;
     }
 
+    // ✅ CORREÇÃO AQUI: LER 'ANÁLISE' (Excel) OU 'ANALISE' (Interface)
+    // Isso garante que o valor não venha undefined
+    const rawAnalise = r["ANÁLISE"] || r.ANALISE;
+
     // ✅ Adiciona registro válido
     filtrados.push({
       DATA: date,
@@ -132,10 +139,16 @@ export function filtrarDefeitosDiagnostico(
       CATEGORIA: norm(r.CATEGORIA),
       RESPONSABILIDADE: norm(r.RESPONSABILIDADE),
       TURNO: norm(r.TURNO),
-      ANALISE: norm(r["ANÁLISE"]),
+      
+      // ✅ AQUI ESTAVA O ERRO: Agora lemos a variável corrigida
+      ANALISE: norm(rawAnalise),
+      
       CODIGO_FALHA: norm(r["CÓDIGO DA FALHA"]),
       DESCRICAO_FALHA: norm(r["DESCRIÇÃO DA FALHA"]),
       QUANTIDADE: Number(r.QUANTIDADE) || 0,
+      
+      // ✅ MAPEAMENTO DA COLUNA DE POSIÇÃO
+      REFERENCIA_POSICAO_MECANICA: r["REFERÊNCIA/POSIÇÃO MECÂNICA"]
     });
   }
 

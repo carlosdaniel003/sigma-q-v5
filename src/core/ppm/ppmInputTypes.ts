@@ -7,6 +7,7 @@ export interface ProductionInputRow {
   QTY_GERAL: number;
   MODELO: string;
   CATEGORIA: string;
+  TURNO?: string; // ✅ Adicionado para suportar a quebra por turno
 }
 
 export interface DefectInputRow {

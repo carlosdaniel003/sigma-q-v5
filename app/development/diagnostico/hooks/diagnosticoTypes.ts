@@ -55,12 +55,9 @@ export interface DefeitoCriticoDetalhado {
 export interface CausaCritica {
   nome: string;
   ocorrencias: number;
-  
-  // ✅ Lista para o Drill-down (detalhes do agrupamento)
   detalhes?: {
     nome: string;
     ocorrencias: number;
-    // ✅ Lista de modelos com quantidade (para o Tooltip)
     modelos?: {
         nome: string;
         ocorrencias: number;
@@ -80,11 +77,36 @@ export interface DiagnosticoAiInput {
     defeitoCritico: DefeitoCritico;
   };
   
-  // ✅ Contexto de PPM
   ppmContext: {
-    atual: number;    // PPM do período selecionado
-    anterior: number; // PPM do período anterior
+    atual: number;    
+    anterior: number; 
     producaoAtual: number;
+  };
+
+  analiseSustentacao?: {
+      nome: string;   
+      ppmT: number;   
+      ppmT1: number;  
+      ppmT2: number; 
+      qtdT: number;   
+      qtdT1: number;  
+      qtdT2: number;
+      // ✅ NOVOS CAMPOS: Labels para texto humanizado (ex: "Fevereiro", "Semana 41")
+      labelT1?: string; 
+      labelT2?: string;  
+  };
+
+  mudancaBrusca?: {
+      nome: string;
+      ppmAtual: number;
+      ppmAnterior: number;
+      delta: number;
+  } | null;
+
+  reincidencia?: {
+    isReincidente: boolean;         
+    periodosConsecutivos: number;   
+    principalCausaAnterior: string; 
   };
 
   contexto?: {
@@ -93,22 +115,40 @@ export interface DiagnosticoAiInput {
     tendenciasAlertas?: {
         agrupamento: string;
         crescimento: number;
+        ppmInicial: number;
+        ppmFinal: number;
+        qtdInicial: number;
+        qtdFinal: number;
     }[];
   };
 }
 
 /* =========================
-   SAÍDA DE TEXTO DA IA
+   ✅ NOVO: CARD DE INSIGHT
+========================= */
+export type InsightTipo = "CRITICO" | "ALERTA" | "MELHORIA" | "INFO";
+
+export interface InsightCard {
+    tipo: InsightTipo;
+    titulo: string;
+    descricao: string;
+    score: number; // Para ordenação (Quanto maior, mais no topo)
+}
+
+/* =========================
+   SAÍDA DE TEXTO DA IA (ATUALIZADA)
 ========================= */
 export interface DiagnosticoIaTexto {
   titulo: string;
-  texto: string;
   
-  // ✅ Campos visuais de Tendência (baseados em PPM)
+  // ✅ Agora temos um resumo narrativo separado dos cards
+  resumoGeral: string; 
+  
+  // ✅ Lista estruturada de cards
+  insights: InsightCard[];
+
   tendencia?: "melhora" | "piora" | "estavel" | "indefinido";
   variacaoPercentual?: number;
-
-  severidade?: "informativo" | "alerta" | "critico";
   indicadoresChave: string[];
 }
 

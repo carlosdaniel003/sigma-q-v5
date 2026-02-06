@@ -2,7 +2,6 @@
 
 import React from "react";
 import { DiagnosticoIaTexto as DiagnosticoType, InsightCard } from "../hooks/diagnosticoTypes";
-// ✅ Importação dos ícones SVG (Lucide React)
 import { 
   AlertTriangle, 
   TrendingUp, 
@@ -41,7 +40,6 @@ function renderHighlightedText(text: string) {
    SUB-COMPONENTE: CARD DE INSIGHT (DESIGN "LEFT BORDER")
 ====================================================== */
 function InsightCardItem({ card }: { card: InsightCard }) {
-    // Configuração visual baseada no tipo
     const config = {
         CRITICO: {
             color: "#EF4444", // Vermelho
@@ -69,9 +67,9 @@ function InsightCardItem({ card }: { card: InsightCard }) {
 
     return (
         <div style={{
-            background: "rgba(255, 255, 255, 0.03)", // Fundo muito sutil
-            borderLeft: `4px solid ${config.color}`, // ✅ Borda Lateral Espessa
-            borderRadius: "4px 12px 12px 4px", // Arredondado apenas na direita
+            background: "rgba(255, 255, 255, 0.03)", 
+            borderLeft: `4px solid ${config.color}`, 
+            borderRadius: "4px 12px 12px 4px", 
             padding: "14px 16px",
             marginBottom: 12,
             display: "flex",
@@ -79,7 +77,7 @@ function InsightCardItem({ card }: { card: InsightCard }) {
             gap: 6,
             transition: "all 0.2s ease",
             border: "1px solid rgba(255,255,255,0.05)",
-            borderLeftWidth: 4, // Garante override
+            borderLeftWidth: 4, 
             borderLeftColor: config.color
         }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -110,7 +108,6 @@ export default function DiagnosticoIaTexto({
   data?: DiagnosticoType;
 }) {
   
-  // SAFETY CHECK
   if (!data) {
     return (
       <div style={emptyStyle}>
@@ -122,7 +119,6 @@ export default function DiagnosticoIaTexto({
 
   const safeInsights = data.insights || [];
 
-  // Configuração visual do Badge de Tendência
   const headerConfig = {
     melhora: { color: "#22c55e", label: "CENÁRIO POSITIVO", bg: "rgba(34, 197, 94, 0.15)" },
     piora: { color: "#ef4444", label: "CENÁRIO NEGATIVO", bg: "rgba(239, 68, 68, 0.15)" },
@@ -153,18 +149,18 @@ export default function DiagnosticoIaTexto({
                 padding: "6px 12px", borderRadius: 6, 
                 background: headerConfig.bg, 
                 color: headerConfig.color, 
-                border: `1px solid ${headerConfig.color}40`, // 40 = 25% opacity hex
+                border: `1px solid ${headerConfig.color}40`, 
                 fontWeight: 700, fontSize: "0.7rem", letterSpacing: "0.08em" 
             }}>
                 {headerConfig.label}
             </span>
         </div>
 
-        {/* ================= GRID CONTENT ================= */}
+        {/* ================= GRID CONTENT (40% / 60%) ================= */}
         <div style={gridStyle}>
             
-            {/* LADO ESQUERDO: RESUMO NARRATIVO */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            {/* LADO ESQUERDO: RESUMO NARRATIVO (40%) */}
+            <div style={{ width: "40%", display: "flex", flexDirection: "column", minWidth: 300 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                     <FileText size={16} color="#64748b" />
                     <h3 style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", margin: 0, letterSpacing: "0.05em" }}>
@@ -175,7 +171,7 @@ export default function DiagnosticoIaTexto({
                 <div style={{ 
                     fontSize: "0.95rem", 
                     lineHeight: 1.8, 
-                    color: "#e2e8f0", // Texto mais claro para leitura
+                    color: "#e2e8f0", 
                     display: "flex", 
                     flexDirection: "column", 
                     gap: 16 
@@ -195,11 +191,11 @@ export default function DiagnosticoIaTexto({
                 </div>
             </div>
 
-            {/* SEPARADOR VERTICAL (Apenas visual) */}
+            {/* SEPARADOR VERTICAL */}
             <div style={{ width: 1, background: "rgba(255,255,255,0.1)", margin: "0 10px" }} />
 
-            {/* LADO DIREITO: INSIGHT CARDS */}
-            <div style={{ width: "35%", minWidth: 320, display: "flex", flexDirection: "column" }}>
+            {/* LADO DIREITO: INSIGHT CARDS (60%) */}
+            <div style={{ flex: 1, minWidth: 320, display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
                     <TrendingUp size={16} color="#64748b" />
                     <h3 style={{ fontSize: "0.8rem", fontWeight: 700, textTransform: "uppercase", color: "#64748b", margin: 0, letterSpacing: "0.05em" }}>
@@ -207,9 +203,16 @@ export default function DiagnosticoIaTexto({
                     </h3>
                 </div>
                 
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {/* ✅ GRID PARA CARDS: Se houver espaço, mostra em 2 colunas.
+                    Isso aproveita os 60% de largura.
+                */}
+                <div style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", 
+                    gap: 12 
+                }}>
                     {safeInsights.length === 0 ? (
-                        <div style={emptyCardStyle}>
+                        <div style={{ ...emptyCardStyle, gridColumn: "1 / -1" }}>
                             <CheckCircle2 size={24} color="#22c55e" style={{ opacity: 0.5, marginBottom: 8 }} />
                             <span>Nenhum alerta crítico detectado no período.</span>
                         </div>
@@ -230,10 +233,10 @@ export default function DiagnosticoIaTexto({
    ESTILOS
 ====================================================== */
 const containerStyle: React.CSSProperties = {
-    background: "rgba(255,255,255,0.02", 
+    background: "rgba(255,255,255,0.02)", 
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 16,
-    padding: 0, // Padding controlado internamente
+    padding: 0, 
     backdropFilter: "blur(12px)",
     boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
     overflow: "hidden"

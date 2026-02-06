@@ -337,7 +337,7 @@ export default function PpmDinamico({
   }, [viewMode, keys]);
 
   /* ======================================================
-      DADOS FINAIS
+      DADOS FINAIS E INSIGHT DE DOMINANTE
   ====================================================== */
   const finalData = useMemo(() => {
       return chartData.map(d => {
@@ -351,12 +351,47 @@ export default function PpmDinamico({
       });
   }, [chartData, keys]);
 
-  // ✅ CORREÇÃO 1: Usar 'as any' para evitar erro de propriedade inexistente no GAP
   const hasContextItem = finalData.length > 0 && (finalData[0] as any).isContext;
 
   const maxVal = chartData.length > 0 
     ? Math.max(...chartData.map((d: any) => d.totalPpmDisplay || 0), META_PPM) * 1.2
     : META_PPM;
+
+  // ✅ NOVO: Cálculo do "Dominante" para o Insight Visual
+  const dominantInsight = useMemo(() => {
+      // Se não houver dados ou só tiver uma chave (Geral), não mostra
+      if (!finalData.length || keys.length <= 1) return null;
+
+      const totals: Record<string, number> = {};
+      let grandTotal = 0;
+
+      keys.forEach(key => {
+          totals[key] = 0;
+          finalData.forEach(item => {
+              // Ignora GAP e Contexto (pega apenas o detalhe)
+              if ((item as any).isGap || (item as any).isContext) return;
+              
+              const val = item[key];
+              if (typeof val === 'number') {
+                  totals[key] += val;
+                  grandTotal += val;
+              }
+          });
+      });
+
+      if (grandTotal === 0) return null;
+
+      // Encontra quem tem o maior acumulado
+      const winnerKey = Object.keys(totals).reduce((a, b) => totals[a] > totals[b] ? a : b);
+      const winnerValue = totals[winnerKey];
+      const percentage = (winnerValue / grandTotal) * 100;
+
+      return {
+          name: winnerKey,
+          percentage: percentage.toFixed(0),
+          color: colors[winnerKey] || "#fff"
+      };
+  }, [finalData, keys, colors]);
 
   return (
     <div style={containerStyle}>
@@ -370,12 +405,31 @@ export default function PpmDinamico({
               {viewMode === "categoria" && `📊 PPM por Categoria${filters?.modelo ? ` (${filters.modelo})` : ""}`}
               {viewMode === "modelo" && `📊 PPM por Modelo${filters?.categoria ? ` (${filters.categoria})` : ""}`}
             </h2>
-            <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                {filters?.periodo?.tipo === "mes" && filters.periodo.valor ? "Total Mensal + Detalhe Diário" :
-                 filters?.periodo?.tipo === "semana" && filters.periodo.valor ? "Total Semanal + Detalhe Diário" : 
-                 filters?.periodo?.tipo === "semana" ? "Visualização Semanal (Ano Todo)" :
-                 "Visualização Mensal"}
-            </span>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                    {filters?.periodo?.tipo === "mes" && filters.periodo.valor ? "Total Mensal + Detalhe Diário" :
+                    filters?.periodo?.tipo === "semana" && filters.periodo.valor ? "Total Semanal + Detalhe Diário" : 
+                    filters?.periodo?.tipo === "semana" ? "Visualização Semanal (Ano Todo)" :
+                    "Visualização Mensal"}
+                </span>
+
+                {/* ✅ NOVO: Exibição do Insight Dominante */}
+                {dominantInsight && (
+                    <>
+                        <span style={{ color: "#475569" }}>|</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: dominantInsight.color }} />
+                            <span style={{ fontSize: "0.75rem", color: "#e2e8f0" }}>
+                                <strong style={{ color: dominantInsight.color }}>{dominantInsight.name}</strong>
+                                <span style={{ opacity: 0.7 }}> domina com </span>
+                                <strong>{dominantInsight.percentage}%</strong>
+                                <span style={{ opacity: 0.7 }}> do acumulado</span>
+                            </span>
+                        </div>
+                    </>
+                )}
+            </div>
           </div>
 
           <div style={legendContainerStyle}>
@@ -410,7 +464,6 @@ export default function PpmDinamico({
                         
                         if (!dataItem || (dataItem as any).isGap) return null;
 
-                        // ✅ CORREÇÃO 2: Usar 'as any' para acesso seguro
                         const isTotal = (dataItem as any).isContext;
 
                         return (

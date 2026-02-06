@@ -8,6 +8,7 @@ import { useDashboardFilters } from "./store/dashboardFilters";
 // Estrutura
 import SidebarDashboard from "./components/SidebarDashboard";
 import DashboardLoading from "./components/DashboardLoading";
+import DashboardMessage from "./components/DashboardMessage";
 
 // KPIs
 import IndiceDefeitosCard from "./components/IndiceDefeitosCard";
@@ -22,11 +23,11 @@ import PpmDinamico, { PpmViewMode } from "./components/PpmDinamico";
 // Ranking
 import RankingCausas from "./components/RankingCausas";
 
-// ✅ NOVO COMPONENTE: Tabela Detalhada Top 3
+// Tabela Detalhada Top 3
 import TabelaDetalhamento from "./components/TabelaDetalhamento";
 
 /* ======================================================
-    CONSTANTES
+   CONSTANTES
 ====================================================== */
 const META_PPM = 6200;
 
@@ -82,7 +83,7 @@ export default function DevelopmentDashboardPage() {
       );
   }, [filterOptions, appliedFilters.categoria]);
 
-  // 1️⃣ CÁLCULO DOS DADOS DA TIMELINE (GRÁFICOS E TENDÊNCIA)
+  // 1️⃣ CÁLCULO DOS DADOS DA TIMELINE
   const { timelineItems, labelType } = useMemo(() => {
       if (!data) return { timelineItems: [], labelType: "Mês" };
 
@@ -118,7 +119,7 @@ export default function DevelopmentDashboardPage() {
 
   }, [data, appliedFilters.periodo]);
 
-  // 2️⃣ CÁLCULO DOS KPIs (META, PRODUÇÃO, DEFEITOS)
+  // 2️⃣ CÁLCULO DOS KPIs
   const kpiData = useMemo(() => {
     if (!data) return { ppm: 0, defects: 0, production: 0 };
 
@@ -143,19 +144,51 @@ export default function DevelopmentDashboardPage() {
     };
   }, [data, appliedFilters.periodo.dia, timelineItems, labelType]);
 
-  // ✅ 3️⃣ GERA O LABEL AMIGÁVEL PARA A TABELA
+  // ✅ 3️⃣ CÁLCULO DA PROJEÇÃO (PREDICTOR COM TRAVA TEMPORAL)
+  const ppmForecast = useMemo(() => {
+      const { tipo, valor, ano } = appliedFilters.periodo;
+
+      // Só projeta se for Filtro MENSAL
+      if (tipo !== "mes" || !valor || !ano || timelineItems.length < 2) {
+          return null;
+      }
+
+      const hoje = new Date();
+      const anoAtual = hoje.getFullYear();
+      const mesAtual = hoje.getMonth() + 1; // 0-11 virando 1-12
+
+      // TRAVA DE SEGURANÇA: Não projetar o passado
+      if (ano < anoAtual) return null; // Ano passado
+      if (ano === anoAtual && valor < mesAtual) return null; // Mês passado
+
+      // Se passou da trava, calcula a projeção
+      const activeDays = timelineItems.filter(d => d.production > 0);
+      const recentDays = activeDays.slice(-3); // Últimos 3 dias de produção
+
+      if (recentDays.length === 0) return null;
+
+      // Média PPM recente (Ritmo)
+      const recentPpmAvg = recentDays.reduce((acc, curr) => acc + curr.ppm, 0) / recentDays.length;
+      
+      // PPM Histórico Acumulado
+      const historyPpm = kpiData.ppm;
+
+      // Projeção: 70% Ritmo Recente + 30% Histórico
+      return (historyPpm * 0.3) + (recentPpmAvg * 0.7);
+
+  }, [appliedFilters.periodo, timelineItems, kpiData.ppm]);
+
+  // 4️⃣ GERA O LABEL AMIGÁVEL
   const tabelaLabel = useMemo(() => {
       const { tipo, valor, ano, dia } = appliedFilters.periodo;
 
       if (dia) {
-          // Formata 2025-10-08 para 08/10/2025
           const [y, m, d] = dia.split("-");
           return `Dia ${d}/${m}/${y}`;
       }
 
       if (tipo === "mes" && valor && ano) {
           const date = new Date(ano, valor - 1, 1);
-          // Retorna "Outubro de 2025"
           const mesExtenso = date.toLocaleDateString("pt-BR", { month: "long" });
           return `${mesExtenso.charAt(0).toUpperCase() + mesExtenso.slice(1)} de ${ano}`;
       }
@@ -212,113 +245,127 @@ export default function DevelopmentDashboardPage() {
 
         {!loading && data && (
           <>
-            {/* KPIs */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-              <IndiceDefeitosCard meta={META_PPM} real={kpiData.ppm} />
-              <KpiQuantidadeDefeitos value={kpiData.defects.toLocaleString("pt-BR")} />
-              <KpiProducaoTotal value={kpiData.production.toLocaleString("pt-BR")} />
-
-              {/* TENDÊNCIA DE PPM */}
-              {(() => {
-                if (appliedFilters.periodo.dia) {
-                    const idxAtual = timelineItems.findIndex(t => t.name === appliedFilters.periodo.dia);
-                    if (idxAtual >= 0) {
-                        const itemAtual = timelineItems[idxAtual];
-                        const itemAnterior = idxAtual > 0 ? timelineItems[idxAtual - 1] : null;
+            {/* LÓGICA DE EXIBIÇÃO INTELIGENTE (EMPTY STATES) */}
+            {timelineItems.length === 0 && kpiData.production === 0 ? (
+                <DashboardMessage tipo="sem_dados" />
+            ) : (
+                <>
+                    {/* KPIs */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                        {/* ✅ KPI COM PROJEÇÃO */}
+                        <IndiceDefeitosCard 
+                            meta={META_PPM} 
+                            real={kpiData.ppm}
+                            projection={ppmForecast} 
+                        />
                         
-                        if (itemAnterior) {
-                             const formatCardLabel = (name: string) => {
-                                const parts = name.split("-");
-                                return parts.length === 3 ? `${parts[2]}/${parts[1]}` : name;
-                             };
-                             return (
+                        <KpiQuantidadeDefeitos value={kpiData.defects.toLocaleString("pt-BR")} />
+                        <KpiProducaoTotal value={kpiData.production.toLocaleString("pt-BR")} />
+
+                        {/* TENDÊNCIA DE PPM */}
+                        {(() => {
+                            if (appliedFilters.periodo.dia) {
+                                const idxAtual = timelineItems.findIndex(t => t.name === appliedFilters.periodo.dia);
+                                if (idxAtual >= 0) {
+                                    const itemAtual = timelineItems[idxAtual];
+                                    const itemAnterior = idxAtual > 0 ? timelineItems[idxAtual - 1] : null;
+                                    
+                                    if (itemAnterior) {
+                                         const formatCardLabel = (name: string) => {
+                                            const parts = name.split("-");
+                                            return parts.length === 3 ? `${parts[2]}/${parts[1]}` : name;
+                                         };
+                                         return (
+                                            <TendenciaPpm
+                                              anterior={itemAnterior.ppm}
+                                              atual={itemAtual.ppm}
+                                              labelAnterior={formatCardLabel(itemAnterior.name)}
+                                              labelAtual={formatCardLabel(itemAtual.name)}
+                                              tipo="dia"
+                                            />
+                                         );
+                                    }
+                                }
+                            }
+
+                            if (timelineItems.length >= 2) {
+                              const a = timelineItems[timelineItems.length - 2]; 
+                              const b = timelineItems[timelineItems.length - 1]; 
+                              const formatCardLabel = (name: string) => {
+                                  if (labelType === "Dia") {
+                                      const [y, m, d] = name.split("-");
+                                      return `${d}/${m}`;
+                                  }
+                                  if (labelType === "Semana") {
+                                      const w = name.split("-W")[1];
+                                      return `S${Number(w)}`;
+                                  }
+                                  return name;
+                              };
+                              return (
                                 <TendenciaPpm
-                                  anterior={itemAnterior.ppm}
-                                  atual={itemAtual.ppm}
-                                  labelAnterior={formatCardLabel(itemAnterior.name)}
-                                  labelAtual={formatCardLabel(itemAtual.name)}
-                                  tipo="dia"
+                                  anterior={a.ppm}
+                                  atual={b.ppm}
+                                  labelAnterior={formatCardLabel(a.name)}
+                                  labelAtual={formatCardLabel(b.name)}
+                                  tipo={labelType.toLowerCase()}
                                 />
-                             );
-                        }
-                    }
-                }
+                              );
+                            }
+                            return <div />;
+                        })()}
+                    </div>
 
-                if (timelineItems.length >= 2) {
-                  const a = timelineItems[timelineItems.length - 2]; 
-                  const b = timelineItems[timelineItems.length - 1]; 
-                  const formatCardLabel = (name: string) => {
-                      if (labelType === "Dia") {
-                          const [y, m, d] = name.split("-");
-                          return `${d}/${m}`;
-                      }
-                      if (labelType === "Semana") {
-                          const w = name.split("-W")[1];
-                          return `S${Number(w)}`;
-                      }
-                      return name;
-                  };
-                  return (
-                    <TendenciaPpm
-                      anterior={a.ppm}
-                      atual={b.ppm}
-                      labelAnterior={formatCardLabel(a.name)}
-                      labelAtual={formatCardLabel(b.name)}
-                      tipo={labelType.toLowerCase()}
-                    />
-                  );
-                }
-                return <div />;
-              })()}
-            </div>
+                    {/* RESTO DO DASHBOARD */}
+                    {kpiData.production === 0 ? (
+                        <DashboardMessage tipo="sem_producao" />
+                    ) : kpiData.defects === 0 ? (
+                        <DashboardMessage tipo="sucesso" />
+                    ) : (
+                        <>
+                            {/* BOTÕES DE VISÃO */}
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <TabButton 
+                                    label="Responsabilidade" 
+                                    active={viewMode === "responsabilidade"} 
+                                    onClick={() => setViewMode("responsabilidade")} 
+                                />
+                                <TabButton 
+                                    label="Categoria" 
+                                    active={viewMode === "categoria"} 
+                                    onClick={() => setViewMode("categoria")} 
+                                />
+                                <TabButton 
+                                    label="Modelo" 
+                                    active={viewMode === "modelo"} 
+                                    onClick={() => setViewMode("modelo")} 
+                                />
+                            </div>
 
-            {/* BOTÕES DE VISÃO */}
-            <div style={{ display: "flex", gap: 8 }}>
-              <TabButton 
-                label="Responsabilidade" 
-                active={viewMode === "responsabilidade"} 
-                onClick={() => setViewMode("responsabilidade")} 
-              />
-              <TabButton 
-                label="Categoria" 
-                active={viewMode === "categoria"} 
-                onClick={() => setViewMode("categoria")} 
-              />
-              <TabButton 
-                label="Modelo" 
-                active={viewMode === "modelo"} 
-                onClick={() => setViewMode("modelo")} 
-              />
-            </div>
+                            <PpmDinamico
+                                viewMode={viewMode}
+                                ppmMonthlyTrend={data.ppmMonthlyTrend}
+                                trendData={data.trendData}
+                                filters={appliedFilters}
+                                allowedModels={allowedModels}
+                            />
 
-            {/* ✅ 1. PPM DINÂMICO (100% Largura) */}
-            <PpmDinamico
-              viewMode={viewMode}
-              ppmMonthlyTrend={data.ppmMonthlyTrend}
-              trendData={data.trendData}
-              filters={appliedFilters}
-              allowedModels={allowedModels}
-            />
+                            <TabelaDetalhamento 
+                                data={data.details} 
+                                filterLabel={tabelaLabel}
+                            />
 
-            {/* ✅ 2. TABELA DETALHADA TOP 3 POR TURNO */}
-            <TabelaDetalhamento 
-                data={data.details} 
-                filterLabel={tabelaLabel} // ✅ Passa o label formatado
-            />
-
-            {/* ✅ 3. GRID INFERIOR (50/50): Ranking | Histórico */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                
-                {/* Ranking de Causas */}
-                <RankingCausas data={data.topCauses} />
-
-                {/* Índice Histórico Temporal */}
-                <IndicePorMes 
-                    data={timelineItems} 
-                    tipoLabel={labelType} 
-                />
-            </div>
-
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <RankingCausas data={data.topCauses} />
+                                <IndicePorMes 
+                                    data={timelineItems} 
+                                    tipoLabel={labelType} 
+                                />
+                            </div>
+                        </>
+                    )}
+                </>
+            )}
           </>
         )}
       </div>

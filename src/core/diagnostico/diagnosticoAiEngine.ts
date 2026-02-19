@@ -2,32 +2,27 @@ import {
   DiagnosticoIaTexto,
   DiagnosticoAiInput,
   InsightCard
-} from ".../../app/development/diagnostico/hooks/diagnosticoTypes"; 
+} from "../../../app/development/diagnostico/hooks/diagnosticoTypes";
 
-/* ======================================================
-   INTERFACE LOCAL DOS PILARES
-   (Idealmente, mova isso para seu arquivo de types)
-   ====================================================== */
-export interface DiagnosticoPilares {
-  spike: InsightCard | null;        // Pilar 1: Mudança Brusca (Piora)
-  melhoria: InsightCard | null;     // Pilar 2: Melhoria Significativa
-  reincidencia: InsightCard | null; // Pilar 3: Alerta de Reincidência
-  rebote: InsightCard | null;       // Pilar 4: Efeito Rebote
-  topOfensor: InsightCard | null;   // Pilar 5: Atenção Imediata
-}
+import {
+  DiagnosticoPilares,
+  calcularPilarSpike,
+  calcularPilarMelhoria,
+  calcularPilarReincidencia,
+  calcularPilarRebote,
+  calcularPilarTopOfensor,
+  fmt,
+  fmtPpm
+} from "./pilares";
 
 // Extensão do tipo de retorno para incluir os pilares
 type DiagnosticoIaOutput = DiagnosticoIaTexto & {
   pilares: DiagnosticoPilares;
 };
 
-// Helpers de formatação
-const fmt = (n: number) => n.toLocaleString("pt-BR");
-const fmtPpm = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
 export function gerarDiagnosticoAutomatico(
   input: DiagnosticoAiInput
-): DiagnosticoIaOutput { // ✅ Retorno tipado com os novos pilares
+): DiagnosticoIaOutput {
   const {
     periodoAtual,
     ppmContext,
@@ -37,19 +32,29 @@ export function gerarDiagnosticoAutomatico(
     mudancaBrusca 
   } = input;
 
-  // 1. Gera o Texto de Resumo (Com lógica completa restaurada)
+  // 👉 DEBUG ADICIONADO AQUI: Permite verificar quais dados o motor está recebendo do banco/backend
+  // eslint-disable-next-line no-console
+  console.log("🔍 [DEBUG SPIKE] Dados de mudancaBrusca que chegaram na IA:", mudancaBrusca);
+
+  // 1. Gera o Texto de Resumo
   const resumoData = gerarTextoResumo(input);
 
-  // 2. Calcula cada Pilar Separadamente
+  // 👉 INJEÇÃO DE DADOS: Adicionamos a produção atual para o pilar de Spike (Gatekeeper de Volume)
+  const mudancaBruscaEnriquecida = mudancaBrusca ? {
+    ...mudancaBrusca,
+    producaoAtual: ppmContext?.producaoAtual || 0
+  } : null;
+
+  // 2. Calcula cada Pilar Separadamente chamando os módulos isolados
   const pilares: DiagnosticoPilares = {
-    spike: calcularPilarSpike(mudancaBrusca),
+    spike: calcularPilarSpike(mudancaBruscaEnriquecida), // ✅ Usamos o objeto enriquecido aqui
     melhoria: calcularPilarMelhoria(mudancaBrusca),
     reincidencia: calcularPilarReincidencia(reincidencia, periodoAtual),
     rebote: calcularPilarRebote(analiseSustentacao),
     topOfensor: calcularPilarTopOfensor(periodoAtual, ppmContext)
   };
 
-  // 3. Monta lista legada de insights (para compatibilidade, caso ainda use)
+  // 3. Monta lista legada de insights (para compatibilidade)
   const insightsLegados = [
     pilares.spike,
     pilares.reincidencia,
@@ -63,105 +68,6 @@ export function gerarDiagnosticoAutomatico(
     insights: insightsLegados,
     pilares: pilares 
   };
-}
-
-/* ======================================================
-   FUNÇÕES DE CÁLCULO DE CADA PILAR (ISOLADAS)
-   ====================================================== */
-
-function calcularPilarSpike(mudancaBrusca: any): InsightCard | null {
-  if (!mudancaBrusca || mudancaBrusca.delta <= 0) return null; // Só interessa PIORA aqui
-
-  const delta = mudancaBrusca.delta;
-  const txtDelta = fmtPpm(delta);
-  const nome = mudancaBrusca.nome;
-
-  if (delta > 100) {
-    return {
-      tipo: "CRITICO",
-      titulo: "Spike Negativo (Piora)",
-      descricao: `O defeito "${nome}" saltou +${txtDelta} PPM subitamente. Indica quebra de processo ou lote defeituoso.`,
-      score: 90
-    };
-  }
-  return {
-    tipo: "ALERTA",
-    titulo: "Oscilação de Processo",
-    descricao: `O defeito "${nome}" variou +${txtDelta} PPM. Monitore para evitar escalada.`,
-    score: 50
-  };
-}
-
-function calcularPilarMelhoria(mudancaBrusca: any): InsightCard | null {
-  if (!mudancaBrusca || mudancaBrusca.delta >= 0) return null; // Só interessa MELHORA aqui
-
-  const delta = mudancaBrusca.delta;
-  const absDelta = Math.abs(delta);
-  
-  // Só considera melhoria relevante se cair mais de 100 PPM
-  if (absDelta > 100) {
-    return {
-      tipo: "MELHORIA",
-      titulo: "Melhoria Significativa",
-      descricao: `O defeito "${mudancaBrusca.nome}" reduziu ${fmtPpm(absDelta)} PPM. Padronize a ação realizada.`,
-      score: 80
-    };
-  }
-  return null;
-}
-
-function calcularPilarReincidencia(reincidencia: any, periodoAtual: any): InsightCard | null {
-  if (!reincidencia) return null;
-
-  if (reincidencia.isReincidente) {
-    return {
-      tipo: "CRITICO",
-      titulo: "Reincidência Sistêmica",
-      descricao: `O grupo "${periodoAtual.principalCausa.nome}" lidera o ranking por ${reincidencia.periodosConsecutivos} períodos consecutivos.`,
-      score: 100
-    };
-  }
-  
-  if (reincidencia.principalCausaAnterior === periodoAtual.principalCausa.nome) {
-    return {
-      tipo: "ALERTA",
-      titulo: "Repetição de Ofensor",
-      descricao: `O grupo "${periodoAtual.principalCausa.nome}" repetiu a liderança. Risco de se tornar crônico.`,
-      score: 60
-    };
-  }
-  return null;
-}
-
-function calcularPilarRebote(analiseSustentacao: any): InsightCard | null {
-  if (!analiseSustentacao) return null;
-
-  const { nome, ppmT, ppmT1, labelT1 } = analiseSustentacao;
-  const nomePeriodoAnterior = labelT1 || "T-1";
-
-  return {
-    tipo: "ALERTA",
-    titulo: "Efeito Rebote",
-    descricao: `"${nome}" caiu em ${nomePeriodoAnterior} (${fmtPpm(ppmT1)} PPM) mas voltou a subir agora (${fmtPpm(ppmT)} PPM).`,
-    score: 75
-  };
-}
-
-function calcularPilarTopOfensor(periodoAtual: any, ppmContext: any): InsightCard | null {
-  // ✅ ATUALIZAÇÃO: Retorna null para não exibir o card duplicado
-  // O conteúdo já está no Resumo Executivo.
-  return null;
-
-  /* LÓGICA ANTIGA (DESATIVADA):
-  if (ppmContext.producaoAtual === 0 || ppmContext.atual === 0) return null;
-
-  return {
-    tipo: "ALERTA", 
-    titulo: "Atenção Imediata",
-    descricao: `O ofensor **${periodoAtual.principalCausa.nome}** concentra **${fmt(periodoAtual.principalCausa.ocorrencias)}** falhas.`,
-    score: 10 
-  };
-  */
 }
 
 /* ======================================================

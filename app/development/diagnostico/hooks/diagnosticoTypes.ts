@@ -17,6 +17,8 @@ export interface PrincipalCausa {
 export interface PrincipalDefeito {
   nome: string;
   ocorrencias: number;
+  // ✅ ADICIONADO: Responsabilidade deduzida do banco para prescrição inteligente
+  responsabilidade?: string; 
 }
 
 /* =========================
@@ -101,12 +103,16 @@ export interface DiagnosticoAiInput {
       ppmAtual: number;
       ppmAnterior: number;
       delta: number;
+      // ✅ ADICIONADO: Histórico de dados em array para suportar gráficos nos cards
+      historico?: number[]; 
   } | null;
 
   reincidencia?: {
     isReincidente: boolean;         
     periodosConsecutivos: number;   
     principalCausaAnterior: string; 
+    // ✅ ADICIONADO: Suporte para detecção de migração de falha (DNA do defeito)
+    principalDefeitoAnterior?: string; 
   };
 
   contexto?: {
@@ -133,6 +139,10 @@ export interface InsightCard {
     titulo: string;
     descricao: string;
     score: number; // Para ordenação (Quanto maior, mais no topo)
+    
+    // ✅ ADICIONADO: Propriedades visuais do mini gráfico (Sparkline)
+    chartData?: number[];
+    chartType?: "line" | "bar";
 }
 
 /* =========================

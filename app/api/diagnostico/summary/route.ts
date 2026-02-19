@@ -482,6 +482,40 @@ function matchResponsabilidade(itemValue: string, filtro: string): boolean {
     return val === filter;
 }
 
+/* ======================================================
+   ✅ NOVA FUNÇÃO: DESCOBRIR RESPONSABILIDADE PREDOMINANTE
+   Acha o verdadeiro "Dono" do defeito contando as ocorrências
+====================================================== */
+function descobrirResponsabilidadePredominante(dados: DefeitoFiltrado[], nomeDefeito: string): string {
+    if (!nomeDefeito) return "Indefinida";
+
+    const contagem = new Map<string, number>();
+    
+    // Filtra apenas os registros que pertencem a esse defeito específico
+    const falhasDoDefeito = dados.filter(d => norm(d.DESCRICAO_FALHA) === norm(nomeDefeito));
+    
+    // Conta as responsabilidades
+    falhasDoDefeito.forEach(d => {
+        const resp = d.RESPONSABILIDADE || "Desconhecida";
+        contagem.set(resp, (contagem.get(resp) || 0) + d.QUANTIDADE);
+    });
+
+    if (contagem.size === 0) return "Desconhecida";
+
+    // Pega a responsabilidade que mais apareceu
+    let topResp = "Desconhecida";
+    let maxQtd = -1;
+
+    for (const [resp, qtd] of contagem.entries()) {
+        if (qtd > maxQtd) {
+            maxQtd = qtd;
+            topResp = resp;
+        }
+    }
+
+    return topResp;
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -509,16 +543,10 @@ export async function GET(req: Request) {
 
     /* ------------------------------------------------------
         2. DADOS ATUAIS (T)
-        ✅ Injetando matchResponsabilidade no motor de filtragem
     ------------------------------------------------------ */
-    // Precisamos de um wrapper que sobrescreva a lógica de filtro padrão apenas para responsabilidade
-    // Como a função filtrarDefeitosDiagnostico pode não suportar a lógica complexa, 
-    // faremos uma pré-filtragem manual se for um grupo virtual.
-    
     let dadosFiltradosRaw = defeitosRaw;
     if (filtrosBase.responsabilidade && filtrosBase.responsabilidade[0] !== "Todos") {
         dadosFiltradosRaw = defeitosRaw.filter(d => matchResponsabilidade(d.RESPONSABILIDADE, filtrosBase.responsabilidade![0]));
-        // Removemos o filtro de responsabilidade do objeto para não filtrar duas vezes (e errado)
         filtrosBase.responsabilidade = undefined;
     }
 
@@ -553,41 +581,23 @@ export async function GET(req: Request) {
     const totalProducaoAnt2 = calcularProducaoFiltrada(producaoRaw, ranges.antepenultimo, filtrosBase, "ANTEPENULTIMO");
 
     /* ------------------------------------------------------
-        5. ANÁLISE DE SUSTENTAÇÃO
+        5. ANÁLISE DE SUSTENTAÇÃO E IA
     ------------------------------------------------------ */
     const nomeDefeitoFoco = agregacaoAtual.principalDefeito.nome;
     const ppmDefeitoT = calcularPpmUnico(dadosAtual, totalProducaoAtual, nomeDefeitoFoco);
-    const ppmDefeitoT1 = calcularPpmUnico(dadosAnterior, totalProducaoAnterior, nomeDefeitoFoco);
-    const ppmDefeitoT2 = calcularPpmUnico(dadosAnt2, totalProducaoAnt2, nomeDefeitoFoco);
+    
+    // ✅ Calcula a responsabilidade real do top ofensor
+    const responsabilidadeReal = descobrirResponsabilidadePredominante(dadosAtual, nomeDefeitoFoco);
 
-    /* ------------------------------------------------------
-        6. DETECÇÃO DE MUDANÇA BRUSCA & CURVA V
-    ------------------------------------------------------ */
     const maiorSpike = detectarMaiorSpike(dadosAtual, totalProducaoAtual, dadosAnterior, totalProducaoAnterior);
     const padraoCurvaV = detectarCurvaVGlobal(dadosAtual, totalProducaoAtual, dadosAnterior, totalProducaoAnterior, dadosAnt2, totalProducaoAnt2);
-
-    // ✅ GERAÇÃO DOS LABELS HUMANIZADOS
     const labelsSustentacao = montarLabelsSustentacao(tipo, valor, ano);
 
-    /* ------------------------------------------------------
-        7. TENDÊNCIAS & REINCIDÊNCIA (HISTÓRICO EXPANDIDO)
-    ------------------------------------------------------ */
     const dadosParaTendencia = filtrarDefeitosDiagnostico(dadosFiltradosRaw, { ...filtrosBase, periodo: { semanas: ranges.rangeTendencia.semanas } }, ocorrenciasIgnorar);
     
-    const streakReincidencia = calcularSequenciaReincidencia(
-        dadosParaTendencia, 
-        agrupamentos, 
-        agregacaoAtual.principalCausa.nome, 
-        tipo,
-        valor, 
-        ano    
-    );
-    
+    const streakReincidencia = calcularSequenciaReincidencia(dadosParaTendencia, agrupamentos, agregacaoAtual.principalCausa.nome, tipo, valor, ano);
     const alertasTendencia = calcularTendenciaPpm(dadosParaTendencia, producaoRaw, agrupamentos, { modelo: filtrosBase.modelo, categoria: filtrosBase.categoria });
 
-    /* ------------------------------------------------------
-        8. IA
-    ------------------------------------------------------ */
     const semanaInicioDisplay = tipo === 'semana' ? ranges.anterior.semanas[0].semana : ranges.atual.semanas[0].semana;
 
     const diagnosticoIa = gerarDiagnosticoAutomatico({
@@ -595,7 +605,8 @@ export async function GET(req: Request) {
         semanaInicio: semanaInicioDisplay, 
         semanaFim: ranges.atual.semanas[1].semana,
         principalCausa: agregacaoAtual.principalCausa,
-        principalDefeito: agregacaoAtual.principalDefeito,
+        // ✅ Injeta a responsabilidade real aqui
+        principalDefeito: { ...agregacaoAtual.principalDefeito, responsabilidade: responsabilidadeReal }, 
         defeitoCritico: agregacaoAtual.defeitoCritico,
       },
       ppmContext: {
@@ -603,7 +614,6 @@ export async function GET(req: Request) {
           anterior: ppmAnterior,
           producaoAtual: totalProducaoAtual
       },
-      // ✅ Passamos os labels humanizados para a Engine de IA
       analiseSustentacao: padraoCurvaV ? {
           nome: padraoCurvaV.nome,
           ppmT: padraoCurvaV.ppmT,
@@ -624,7 +634,8 @@ export async function GET(req: Request) {
       reincidencia: {
           isReincidente: streakReincidencia > 2, 
           periodosConsecutivos: streakReincidencia,
-          principalCausaAnterior: agregacaoAnterior.principalCausa.nome
+          principalCausaAnterior: agregacaoAnterior.principalCausa.nome,
+          principalDefeitoAnterior: agregacaoAnterior.principalDefeito.nome
       },
       contexto: {
         turnoMaisAfetado: filtrosBase.turno ? filtrosBase.turno[0] : undefined,

@@ -13,9 +13,12 @@ import {
 
 /* ======================================================
    PARSER DE TEXTO (Estilo Moderno - Sem "Caixa")
+   Atualizado para suportar HTML Inline (SVGs e <br/>)
 ====================================================== */
 function renderHighlightedText(text: string) {
+  // Regex atualizada para manter o split, mas permitindo injetar o HTML
   const parts = text.split(/(\*\*.*?\*\*)/g);
+  
   return parts.map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       const content = part.slice(2, -2);
@@ -27,13 +30,57 @@ function renderHighlightedText(text: string) {
             fontWeight: 700,
             letterSpacing: "0.02em"
           }}
-        >
-          {content}
-        </strong>
+          // Se o conteúdo em negrito tiver alguma tag (raro, mas protegido)
+          dangerouslySetInnerHTML={{ __html: content }} 
+        />
       );
     }
-    return <span key={index}>{part}</span>;
+    // Renderiza a parte normal do texto (que pode conter os <svg> e <br/> do backend)
+    return <span key={index} dangerouslySetInnerHTML={{ __html: part }} />;
   });
+}
+
+/* ======================================================
+   SUB-COMPONENTE: MINI GRÁFICO (SPARKLINE)
+====================================================== */
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  if (!data || data.length < 2) return null;
+
+  const width = 80;
+  const height = 24; // Altura pequena para caber ao lado do título
+  
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1; // Evita divisão por zero se os valores forem iguais
+
+  // Mapeia os dados para coordenadas X e Y dentro do SVG
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((d - min) / range) * height;
+    return `${x},${y}`;
+  }).join(" L ");
+
+  // Coordenadas do último ponto para desenhar a "bolinha" de destaque
+  const lastX = width;
+  const lastY = height - ((data[data.length - 1] - min) / range) * height;
+
+  return (
+    <svg width={width} height={height} style={{ overflow: "visible", opacity: 0.9 }}>
+      {/* Linha do Gráfico */}
+      <path 
+        d={`M ${points}`} 
+        fill="none" 
+        stroke={color} 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+      {/* Ponto final em destaque */}
+      <circle cx={lastX} cy={lastY} r="3" fill={color} />
+      {/* Efeito de brilho sutil no ponto */}
+      <circle cx={lastX} cy={lastY} r="6" fill={color} opacity="0.3" />
+    </svg>
+  );
 }
 
 /* ======================================================
@@ -74,26 +121,38 @@ function InsightCardItem({ card }: { card: InsightCard }) {
             marginBottom: 12,
             display: "flex",
             flexDirection: "column",
-            gap: 6,
+            gap: 8,
             transition: "all 0.2s ease",
             border: "1px solid rgba(255,255,255,0.05)",
             borderLeftWidth: 4, 
             borderLeftColor: config.color
         }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <IconComponent size={18} color={config.color} strokeWidth={2.5} />
-                <span style={{ 
-                    fontWeight: 700, 
-                    fontSize: "0.8rem", 
-                    color: config.color, 
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em"
-                }}>
-                    {card.titulo}
-                </span>
+            {/* Header do Card com Título e Gráfico (Se existir) */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <IconComponent size={18} color={config.color} strokeWidth={2.5} />
+                    <span style={{ 
+                        fontWeight: 700, 
+                        fontSize: "0.8rem", 
+                        color: config.color, 
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em"
+                    }}>
+                        {card.titulo}
+                    </span>
+                </div>
+                
+                {/* ✅ MINI GRÁFICO (SPARKLINE) */}
+                {card.chartData && card.chartData.length >= 2 && (
+                    <div style={{ marginLeft: 16 }}>
+                        <Sparkline data={card.chartData} color={config.color} />
+                    </div>
+                )}
             </div>
+
+            {/* Descrição com renderizador de negrito para destacar os valores */}
             <p style={{ margin: 0, fontSize: "0.85rem", color: "#cbd5e1", lineHeight: 1.5 }}>
-                {card.descricao}
+                {renderHighlightedText(card.descricao)}
             </p>
         </div>
     );
@@ -203,9 +262,7 @@ export default function DiagnosticoIaTexto({
                     </h3>
                 </div>
                 
-                {/* ✅ GRID PARA CARDS: Se houver espaço, mostra em 2 colunas.
-                    Isso aproveita os 60% de largura.
-                */}
+                {/* GRID PARA CARDS: Se houver espaço, mostra em 2 colunas. */}
                 <div style={{ 
                     display: "grid", 
                     gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", 

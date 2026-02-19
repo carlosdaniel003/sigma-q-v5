@@ -15,6 +15,113 @@ import DefectDetailsDrawer from "./components/DefectDetailsDrawer";
 import { useDiagnosticoIa } from "./hooks/useDiagnosticoIa";
 import { useDiagnosticoFilters } from "./store/diagnosticoFilters"; 
 
+// Importando ícones elegantes para substituir os emojis
+import { BarChart3, Award, Lightbulb } from "lucide-react"; 
+
+/* ======================================================
+   MÓDULO: MENSAGEM DE "SEM PRODUÇÃO"
+====================================================== */
+function EmptyProductionState() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "60px 20px",
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.05)",
+        borderRadius: 24,
+        textAlign: "center",
+        marginTop: 20,
+      }}
+    >
+      <div style={{ marginBottom: 16, opacity: 0.8 }}>
+        <BarChart3 size={48} color="#94a3b8" strokeWidth={1.5} />
+      </div>
+      <h2 style={{ fontSize: "1.25rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 8 }}>
+        Não houve produção neste período
+      </h2>
+      <p style={{ maxWidth: 500, color: "#94a3b8", lineHeight: 1.6 }}>
+        O sistema não encontrou registros de produção para os filtros selecionados (Categoria/Modelo/Data). 
+        Sem produção, não é possível calcular indicadores de qualidade (PPM) ou risco.
+      </p>
+      <div 
+        style={{ 
+          marginTop: 24, 
+          padding: "8px 16px", 
+          background: "rgba(59, 130, 246, 0.1)", 
+          color: "#60a5fa", 
+          borderRadius: 8, 
+          fontSize: "0.9rem",
+          fontWeight: 500,
+          border: "1px solid rgba(59, 130, 246, 0.2)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8
+        }}
+      >
+        <Lightbulb size={16} /> Dica: Tente selecionar um período anterior ou outro modelo.
+      </div>
+    </div>
+  );
+}
+
+/* ======================================================
+   MÓDULO: MENSAGEM DE "EXCELÊNCIA (ZERO DEFEITOS)"
+====================================================== */
+function ExcellenceState() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "60px 20px",
+        background: "linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.02) 100%)",
+        border: "1px solid rgba(16, 185, 129, 0.15)",
+        borderRadius: 24,
+        textAlign: "center",
+        marginTop: 20,
+      }}
+    >
+      <div style={{ marginBottom: 16 }}>
+        <Award size={56} color="#34d399" strokeWidth={1.5} />
+      </div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#34d399", marginBottom: 12 }}>
+        Excelência em Qualidade
+      </h2>
+      <div style={{ fontSize: "1.1rem", color: "#e2e8f0", marginBottom: 8 }}>
+        Zero Defeitos Registrados
+      </div>
+      <p style={{ maxWidth: 600, color: "#94a3b8", lineHeight: 1.6, marginBottom: 24 }}>
+        Parabéns! Houve produção registrada para este período, mas <strong>nenhuma falha</strong> foi apontada. 
+        O processo demonstrou robustez total nos filtros selecionados.
+      </p>
+      <div 
+        style={{ 
+          padding: "6px 16px", 
+          background: "rgba(16, 185, 129, 0.15)", 
+          color: "#34d399", 
+          borderRadius: 20, 
+          fontSize: "0.9rem",
+          fontWeight: 700, 
+          border: "1px solid rgba(16, 185, 129, 0.3)",
+          letterSpacing: 0.5
+        }}
+      >
+        PPM 0,00
+      </div>
+    </div>
+  );
+}
+
+
+/* ======================================================
+   COMPONENTE PRINCIPAL
+====================================================== */
 export default function DiagnosticoIaPage() {
   const { data, loading, error } = useDiagnosticoIa();
   const { filters } = useDiagnosticoFilters(); 
@@ -145,85 +252,10 @@ export default function DiagnosticoIaPage() {
           <>
             {/* 1️⃣ CENÁRIO: SEM PRODUÇÃO */}
             {isSemProducao ? (
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "60px 20px",
-                        background: "rgba(255,255,255,0.03)",
-                        border: "1px solid rgba(255,255,255,0.05)",
-                        borderRadius: 24,
-                        textAlign: "center",
-                        marginTop: 20,
-                    }}
-                >
-                    <div style={{ fontSize: "3rem", marginBottom: 16, opacity: 0.8 }}>📊</div>
-                    <h2 style={{ fontSize: "1.25rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 8 }}>
-                        Não houve produção neste período
-                    </h2>
-                    <p style={{ maxWidth: 500, color: "#94a3b8", lineHeight: 1.6 }}>
-                        O sistema não encontrou registros de produção para os filtros selecionados (Categoria/Modelo/Data). 
-                        Sem produção, não é possível calcular indicadores de qualidade (PPM) ou risco.
-                    </p>
-                    <div 
-                        style={{ 
-                            marginTop: 24, 
-                            padding: "8px 16px", 
-                            background: "rgba(59, 130, 246, 0.1)", 
-                            color: "#60a5fa", 
-                            borderRadius: 8, 
-                            fontSize: "0.9rem",
-                            fontWeight: 500,
-                            border: "1px solid rgba(59, 130, 246, 0.2)"
-                        }}
-                    >
-                        💡 Dica: Tente selecionar um período anterior ou outro modelo.
-                    </div>
-                </div>
+                <EmptyProductionState />
             ) : isZeroDefeitos ? (
                 /* 2️⃣ CENÁRIO: EXCELÊNCIA (ZERO DEFEITOS) */
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "60px 20px",
-                        background: "linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.02) 100%)",
-                        border: "1px solid rgba(16, 185, 129, 0.15)",
-                        borderRadius: 24,
-                        textAlign: "center",
-                        marginTop: 20,
-                    }}
-                >
-                    <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>🏆</div>
-                    <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#34d399", marginBottom: 12 }}>
-                        Excelência em Qualidade
-                    </h2>
-                    <div style={{ fontSize: "1.1rem", color: "#e2e8f0", marginBottom: 8 }}>
-                        Zero Defeitos Registrados
-                    </div>
-                    <p style={{ maxWidth: 600, color: "#94a3b8", lineHeight: 1.6, marginBottom: 24 }}>
-                        Parabéns! Houve produção registrada para este período, mas <strong>nenhuma falha</strong> foi apontada. 
-                        O processo demonstrou robustez total nos filtros selecionados.
-                    </p>
-                    <div 
-                        style={{ 
-                            padding: "6px 16px", 
-                            background: "rgba(16, 185, 129, 0.15)", 
-                            color: "#34d399", 
-                            borderRadius: 20, 
-                            fontSize: "0.9rem",
-                            fontWeight: 700, 
-                            border: "1px solid rgba(16, 185, 129, 0.3)",
-                            letterSpacing: 0.5
-                        }}
-                    >
-                        PPM 0,00
-                    </div>
-                </div>
+                <ExcellenceState />
             ) : (
                 /* 3️⃣ CENÁRIO: PADRÃO (COM DADOS) */
                 <>

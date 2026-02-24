@@ -1,19 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <!-- Cabeça -->
-  <rect x="12" y="16" width="40" height="28" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="hexBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#255f94" />
+      <stop offset="100%" stop-color="#0a1f38" />
+    </linearGradient>
+  </defs>
 
-  <!-- Antena -->
-  <line x1="32" y1="8" x2="32" y2="16" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="32" cy="6" r="3" fill="#3b82f6"/>
+  <polygon points="50,4 89.8,27 89.8,73 50,96 10.2,73 10.2,27" fill="url(#hexBg)" />
 
-  <!-- Olhos -->
-  <circle cx="24" cy="30" r="4" fill="#3b82f6"/>
-  <circle cx="40" cy="30" r="4" fill="#3b82f6"/>
+  <g stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+    
+    <path d="M 44.8 85 L 17.1 69 L 17.1 31 L 50 12 L 82.9 31 L 82.9 69 L 55.2 85" />
 
-  <!-- Boca / Processamento -->
-  <rect x="22" y="38" width="20" height="4" rx="2" fill="#3b82f6"/>
+    <path d="M 50 93 L 50 22" />
 
-  <!-- Laterais -->
-  <line x1="12" y1="26" x2="6" y2="26" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
-  <line x1="52" y1="26" x2="58" y2="26" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 50 50 L 36 41.9 L 36 30" />
+
+    <path d="M 50 50 L 64 41.9 L 64 30" />
+
+    <path d="M 50 71 L 38 77.9 L 30 73.3" />
+
+    <path d="M 50 71 L 62 77.9 L 70 73.3" />
+    
+  </g>
+
+  <g fill="#ffffff">
+    <circle cx="50" cy="50" r="4.5" />
+    
+    <circle cx="50" cy="22" r="3" />
+    
+    <circle cx="36" cy="30" r="3" />
+    <circle cx="64" cy="30" r="3" />
+    
+    <circle cx="30" cy="73.3" r="3" />
+    <circle cx="70" cy="73.3" r="3" />
+  </g>
 </svg>

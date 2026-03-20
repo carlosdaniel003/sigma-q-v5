@@ -1,4 +1,4 @@
-// src\core\data\loadProducao.ts
+// src/core/data/loadProducao.ts
 import fs from "fs";
 import path from "path";
 
@@ -122,12 +122,15 @@ export async function loadProducao(): Promise<ProducaoRaw[]> {
     // 🚀 Carrega os IDs que devem ser banidos do sistema
     const ignoradosIds = getIgnoredIds();
 
-    // 🛡️ FILTRO: REMOVE IGNORADOS + FILTRA ANO 2026 E DATA
+    // 🛡️ FILTRO: REMOVE IGNORADOS + FILTRA ANO 2026 E DATA + APENAS FAB1
     const filteredData = rawData.filter((r) => {
       // 1. O Filtro Mágico: Se estiver na lista negra, ignora e não entra na conta!
       if (ignoradosIds.has(String(r.id))) return false;
 
-      // 2. Filtro normal de Data / 2026
+      // 🔥 2. NOVO FILTRO: Garante que apenas FAB1 seja processada
+      if (String(r.FABRICA || "").trim().toUpperCase() !== "FAB1") return false;
+
+      // 3. Filtro normal de Data / 2026
       let dataObj: Date | null = null;
       if (r.DATA) {
          const dateStr = String(r.DATA).trim().split(" ")[0];
@@ -141,7 +144,7 @@ export async function loadProducao(): Promise<ProducaoRaw[]> {
     const discarded = rawData.length - filteredData.length;
     if (discarded > 0) {
         // eslint-disable-next-line no-console
-        console.log(`🧹 [LoadProducao] ${discarded} registros filtrados (Data ou Ignorados). Mantidos: ${filteredData.length}`);
+        console.log(`🧹 [LoadProducao] ${discarded} registros filtrados (Data, Ignorados ou FAB2). Mantidos: ${filteredData.length}`);
     }
 
     // ======================================================

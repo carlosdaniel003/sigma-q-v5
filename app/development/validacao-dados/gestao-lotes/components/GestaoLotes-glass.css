@@ -135,7 +135,7 @@
 .gl-btn-success:hover { box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5); filter: brightness(1.1); }
 
 .gl-modal-overlay {
-  position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justifyContent: center;
+  position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-Content: center;
   background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   animation: fadeIn 0.3s ease forwards;
 }

@@ -306,3 +306,8 @@ body::before {
 
 /* DEBUG: se ainda ver branco — habilite bordas para localizar o bloco culpado
    (remova/comment depois de achar o culpado) */
+
+   html, body {
+  height: 100%;
+  overflow: hidden; /* 🔥 REMOVE SCROLL DUPLO */
+}

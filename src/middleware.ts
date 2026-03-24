@@ -41,26 +41,6 @@ export function middleware(request: NextRequest) {
   }
   */
 
-  /*
-  // === REGRA 3: CONTROLE DE ACESSO POR CARGO (RBAC) ===
-  // Protege a área de "Gerenciamento de Acesso" apenas para Admins/Devs
-  if (token && pathname.startsWith('/development/acesso')) {
-    try {
-      const user = JSON.parse(token.value);
-      
-      // Se for 'viewer' (Convidado), chuta de volta pro Dashboard
-      if (user.role === 'viewer') {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      }
-    } catch (e) {
-      // Se o cookie estiver corrompido, força logout
-      const resp = NextResponse.redirect(new URL('/login', request.url));
-      resp.cookies.delete('sigma_auth');
-      return resp;
-    }
-  }
-  */
-
   // ✅ Se passou por tudo (e com a segurança desativada), libera o acesso total!
   return NextResponse.next();
 }

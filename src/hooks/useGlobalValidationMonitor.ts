@@ -87,12 +87,6 @@ export function useGlobalValidationMonitor() {
         // ATUALIZA INTERFACE E LOCALSTORAGE
         // ============================================================
         if (isMounted) {
-          localStorage.setItem("sigma_validation_alert", String(alertDefeitos));
-          localStorage.setItem("sigma_validation_alert_producao", String(alertProducao));
-          localStorage.setItem("sigma_validation_alert_ppm", String(alertPpm));
-
-          // Avisa a Sidebar instantaneamente
-          window.dispatchEvent(new Event("sigma_alert_changed"));
           
           // eslint-disable-next-line no-console
           console.log("✅ [Monitor Global] Status consolidado:", { 

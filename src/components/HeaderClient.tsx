@@ -11,8 +11,7 @@ export default function HeaderClient({ onToggleSidebar }: { onToggleSidebar?: ()
           ☰
         </button>
         <div>
-          <div className="text-lg font-bold">🔒SIGMA-Q</div>
-          <div className="text-sm text-neutral-300">Área Restrita - Autentique-se</div>
+          <div className="text-lg font-bold">SIGMA-Q</div>
         </div>
       </div>
 

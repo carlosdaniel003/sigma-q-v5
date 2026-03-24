@@ -53,6 +53,9 @@ export default function DevelopmentDashboardPage() {
   // Estados para notificação de novos dados
   const [newDefectsCount, setNewDefectsCount] = useState(0);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 🔥 NOVO: Substitui o sessionStorage para guardar a base inicial na memória do componente
+  const baseDefectCountRef = useRef<number | null>(null);
 
   // Hooks principais
   const { data, loading, error, lastUpdated, refresh } = useDashboard();
@@ -85,11 +88,10 @@ export default function DevelopmentDashboardPage() {
     // Se não há dados ainda, não começamos o polling
     if (!data || !data.meta) return;
 
-    // Registra a contagem inicial no sessionStorage (apenas se não existir ou se for uma atualização manual)
-    const storedBaseCount = sessionStorage.getItem("sigma_base_defect_count");
-    if (!storedBaseCount || parseInt(storedBaseCount, 10) !== data.meta.totalDefects) {
+    // Registra a contagem inicial na referência (apenas se não existir ou se for uma atualização manual)
+    if (baseDefectCountRef.current === null || baseDefectCountRef.current !== data.meta.totalDefects) {
       // Se não havia registro, ou se o total da API mudou "legitimamente" (por exemplo, após o refresh), atualizamos a base.
-      sessionStorage.setItem("sigma_base_defect_count", data.meta.totalDefects.toString());
+      baseDefectCountRef.current = data.meta.totalDefects;
     }
 
     const checkNewData = async () => {
@@ -106,10 +108,10 @@ export default function DevelopmentDashboardPage() {
           const newData = await res.json();
           const serverCount = newData.meta.totalDefects;
           
-          // Lemos a base imutável da sessão
-          const currentBaseCount = parseInt(sessionStorage.getItem("sigma_base_defect_count") || "0", 10);
+          // Lemos a base imutável armazenada no useRef
+          const currentBaseCount = baseDefectCountRef.current || 0;
 
-          // Se o servidor tem mais defeitos do que a nossa base guardada na sessão
+          // Se o servidor tem mais defeitos do que a nossa base guardada
           if (serverCount > currentBaseCount) {
              setNewDefectsCount(serverCount - currentBaseCount);
           } else {
@@ -135,9 +137,9 @@ export default function DevelopmentDashboardPage() {
   }, [data, appliedFilters]);
 
   const handleRefresh = () => {
-      // Atualizamos a base na sessão com os dados mais recentes que virão da API após o refresh
+      // Atualizamos a base na memória com os dados mais recentes que virão da API após o refresh
       setNewDefectsCount(0);
-      sessionStorage.removeItem("sigma_base_defect_count"); // Força o useEffect a recriar a base
+      baseDefectCountRef.current = null; // Força o useEffect a recriar a base
       refresh();
   };
 

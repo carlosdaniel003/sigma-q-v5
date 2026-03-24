@@ -20,9 +20,9 @@ export default function AppLayoutClient({
 
   // 🚫 LISTA NEGRA: Rotas onde o Sidebar NÃO deve aparecer
   // Adicione outras rotas públicas aqui se necessário
-  const isPublicPage = pathname === "/login" || pathname === "/";
+  const isPublicPage = pathname === "/";
 
-  // Se for página pública (Login), renderiza apenas o conteúdo limpo
+  // Se for página pública (Raiz), renderiza apenas o conteúdo limpo
   if (isPublicPage) {
     return <>{children}</>;
   }

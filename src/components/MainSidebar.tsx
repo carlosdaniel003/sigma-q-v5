@@ -14,7 +14,6 @@ import "./MainSidebar-glass.css";
 
 import {
   BookOpenIcon,
-  ShieldCheckIcon,
   Squares2X2Icon,
   TableCellsIcon,
   ChevronDownIcon,
@@ -122,22 +121,6 @@ export function MainSidebar({ collapsed, setCollapsed }: SidebarProps) {
                 </Link>
               </div>
             </div>
-          </div>
-
-          <Link href="/development/acesso" className={`glass-nav-card ${isActive("/development/acesso") ? "glass-is-active" : ""}`}>
-            <ShieldCheckIcon className="glass-nav-icon" />
-            <span className="glass-nav-text">Gerenciamento de Acesso</span>
-          </Link>
-        </div>
-
-        <div className="glass-sidebar-footer">
-          <div className="glass-logout-card" onClick={() => {
-              localStorage.removeItem("sigma_user");
-              document.cookie = "sigma_auth=; path=/; max-age=0";
-              window.location.href = "/login";
-            }}>
-            <div className="glass-logout-icon-wrapper"><span className="glass-logout-initial">S</span></div>
-            <span className="glass-nav-text">Sair</span>
           </div>
         </div>
       </aside>

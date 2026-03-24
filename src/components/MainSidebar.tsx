@@ -4,7 +4,6 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { isGuestUser } from "@/core/session/userSession";
 
 // Hook Inteligente (que lê do Contexto)
 import { useValidation } from "@/contexts/ValidationContext";
@@ -28,7 +27,6 @@ interface SidebarProps {
 export function MainSidebar({ collapsed, setCollapsed }: SidebarProps) {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const [guest, setGuest] = useState(true);
   const [openValidacao, setOpenValidacao] = useState(false);
   
   // Lemos os alertas da memória em tempo real!
@@ -37,7 +35,6 @@ export function MainSidebar({ collapsed, setCollapsed }: SidebarProps) {
   const hasAnyAlert = alerts.defeitos || alerts.producao || alerts.ppm;
 
   useEffect(() => {
-    setGuest(isGuestUser());
     setMounted(true);
   }, []);
 
@@ -47,7 +44,7 @@ export function MainSidebar({ collapsed, setCollapsed }: SidebarProps) {
     }
   }, [pathname]);
 
-  if (!mounted || guest) return null;
+  if (!mounted) return null;
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path);
   const isValidacaoActive = isActive("/development/validacao-dados");

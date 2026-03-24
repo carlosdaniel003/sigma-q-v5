@@ -1,8 +1,7 @@
-// app\development\dashboard\page.tsx
+// app/development/dashboard/page.tsx
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { getUser } from "@/services/userStorage";
 import { useDashboard, TrendItem } from "./hooks/useDashboard";
 import { useDashboardFilters } from "./store/dashboardFilters";
 
@@ -48,7 +47,6 @@ const METAS_POR_CATEGORIA: Record<string, number> = {
 
 export default function DevelopmentDashboardPage() {
   const [mounted, setMounted] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const [viewMode, setViewMode] = useState<PpmViewMode>("responsabilidade");
   const [filterOptions, setFilterOptions] = useState<any>(null);
 
@@ -61,18 +59,10 @@ export default function DevelopmentDashboardPage() {
   const { appliedFilters } = useDashboardFilters();
 
   /* ======================================================
-      AUTH & LOAD OPTIONS
+      LOAD OPTIONS (Autenticação Removida)
   ====================================================== */
   useEffect(() => {
-    const storedUser = getUser();
-    setUser(storedUser);
     setMounted(true);
-
-    if (!storedUser || storedUser.role === "viewer") {
-      localStorage.removeItem("sigma_user");
-      document.cookie = "sigma_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-      window.location.href = "/login";
-    }
 
     async function loadOptions() {
         try {
@@ -264,16 +254,10 @@ export default function DevelopmentDashboardPage() {
       return "Período Completo";
   }, [appliedFilters.periodo]);
 
-  if (!mounted || !user) return null;
+  if (!mounted) return null;
 
   return (
-    <div
-  style={{
-    color: "#fff",
-    height: "100%",
-    paddingBottom: 40,
-  }}
->
+    <div style={{ color: "#fff", height: "100%", paddingBottom: 40 }}>
 
       {/* ✅ HEADER COMPONENTE */}
       <DashboardHeader 

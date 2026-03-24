@@ -239,50 +239,10 @@
   right: 14px;
 }
 
-/* --- Rodapé (Logout) --- */
+/* --- Rodapé --- */
 .glass-sidebar-footer {
   padding: 20px 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.01);
   white-space: nowrap;
-}
-
-.glass-logout-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  color: #cbd5e1;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-
-.glass-logout-card:hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-}
-
-.glass-logout-icon-wrapper {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.3s ease;
-}
-
-.glass-logout-card:hover .glass-logout-icon-wrapper {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-}
-
-.glass-logout-initial {
-  font-size: 0.9rem;
-  font-weight: 800;
 }

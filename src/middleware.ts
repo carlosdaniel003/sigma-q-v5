@@ -1,3 +1,4 @@
+// src\middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
@@ -15,6 +16,13 @@ export function middleware(request: NextRequest) {
   // Verifica se é rota pública (usando startsWith para pegar subarquivos)
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
+  /* =========================================================
+     🛑 [SEGURANÇA DESATIVADA TEMPORARIAMENTE] 🛑
+     As validações abaixo foram comentadas conforme solicitado
+     para liberar o acesso livre e evitar bloqueios pelo T.I.
+  ========================================================= */
+
+  /*
   // === REGRA 1: PROTEÇÃO TOTAL ===
   // Se não tem token E não é rota pública -> Manda pro Login
   if (!token && !isPublicRoute) {
@@ -23,13 +31,17 @@ export function middleware(request: NextRequest) {
     // loginUrl.searchParams.set('from', pathname);
     return NextResponse.redirect(loginUrl);
   }
+  */
 
+  /*
   // === REGRA 2: USUÁRIO LOGADO NÃO VÊ LOGIN ===
   // Se tem token E tentou entrar no login -> Manda pro Dashboard
   if (token && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
+  */
 
+  /*
   // === REGRA 3: CONTROLE DE ACESSO POR CARGO (RBAC) ===
   // Protege a área de "Gerenciamento de Acesso" apenas para Admins/Devs
   if (token && pathname.startsWith('/development/acesso')) {
@@ -47,8 +59,9 @@ export function middleware(request: NextRequest) {
       return resp;
     }
   }
+  */
 
-  // Se passou por tudo, libera o acesso
+  // ✅ Se passou por tudo (e com a segurança desativada), libera o acesso total!
   return NextResponse.next();
 }
 
